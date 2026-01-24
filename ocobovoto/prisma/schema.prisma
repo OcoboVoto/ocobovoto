@@ -1,0 +1,219 @@
+// prisma/schema.prisma
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ============================================
+// MODELOS PRINCIPALES
+// ============================================
+
+model Conjunto {
+  id                 String              @id @default(uuid())
+  nombre             String
+  nit                String              @unique
+  coeficienteTotal   Decimal             @map("coeficiente_total") @db.Decimal(10, 4)
+  createdAt          DateTime            @default(now()) @map("created_at")
+  
+  asambleas          Asamblea[]
+  propietarios       Propietario[]
+  admin              UsuarioAdmin?
+  
+  @@map("conjuntos")
+}
+
+model Propietario {
+  id                String              @id @default(uuid())
+  conjuntoId        String              @map("conjunto_id")
+  torreManzana      String              @map("torre_manzana")
+  aptoCasa          String              @map("apto_casa")
+  nombreCompleto    String              @map("nombre_completo")
+  cedula            String              @unique
+  celular           String?
+  email             String?
+  coeficiente       Decimal             @db.Decimal(10, 4)
+  activo            Boolean             @default(true)
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
+  
+  conjunto          Conjunto            @relation(fields: [conjuntoId], references: [id], onDelete: Cascade)
+  registros         RegistroAsamblea[]
+  poderesOtorgados  Poder[]             @relation("PropietarioOtorgante")
+  
+  @@unique([conjuntoId, torreManzana, aptoCasa])
+  @@index([conjuntoId])
+  @@index([cedula])
+  @@map("propietarios")
+}
+
+model UsuarioAdmin {
+  id            String    @id @default(uuid())
+  conjuntoId    String    @unique @map("conjunto_id")
+  email         String    @unique
+  passwordHash  String    @map("password_hash")
+  nombre        String
+  createdAt     DateTime  @default(now()) @map("created_at")
+  
+  conjunto      Conjunto  @relation(fields: [conjuntoId], references: [id], onDelete: Cascade)
+  
+  @@map("usuarios_admin")
+}
+
+model Asamblea {
+  id                      String                    @id @default(uuid())
+  conjuntoId              String                    @map("conjunto_id")
+  tipo                    String
+  fechaHora               DateTime                  @map("fecha_hora")
+  modalidad               String
+  estado                  String                    @default("borrador")
+  quorumRequerido         Decimal                   @map("quorum_requerido") @db.Decimal(5, 2)
+  quorumInicial           Decimal                   @default(0) @map("quorum_inicial") @db.Decimal(5, 2)
+  quorumFinal             Decimal?                  @map("quorum_final") @db.Decimal(5, 2)
+  confirmacionActivada    Boolean                   @default(false) @map("confirmacion_activada")
+  qrCodeData              String                    @map("qr_code_data")
+  ordenDia                Json?                     @map("orden_dia")
+  createdAt               DateTime                  @default(now()) @map("created_at")
+  
+  conjunto                Conjunto                  @relation(fields: [conjuntoId], references: [id], onDelete: Cascade)
+  proposiciones           Proposicion[]
+  registros               RegistroAsamblea[]
+  votantes                Votante[]
+  poderes                 Poder[]
+  confirmaciones          ConfirmacionAsistencia[]
+  
+  @@index([conjuntoId])
+  @@index([estado])
+  @@map("asambleas")
+}
+
+model RegistroAsamblea {
+  id                    String       @id @default(uuid())
+  asambleaId            String       @map("asamblea_id")
+  propietarioId         String       @map("propietario_id")
+  cedulaRegistrante     String       @map("cedula_registrante")
+  horaRegistro          DateTime     @default(now()) @map("hora_registro")
+  modalidadAsistencia   String       @map("modalidad_asistencia")
+  poderesRepresentados  Json?        @map("poderes_representados")
+  
+  asamblea              Asamblea     @relation(fields: [asambleaId], references: [id], onDelete: Cascade)
+  propietario           Propietario  @relation(fields: [propietarioId], references: [id], onDelete: Cascade)
+  
+  @@unique([asambleaId, cedulaRegistrante])
+  @@index([asambleaId])
+  @@map("registros_asamblea")
+}
+
+model Poder {
+  id                    String       @id @default(uuid())
+  propietarioOtorganteId String      @map("propietario_otorgante_id")
+  asambleaId            String       @map("asamblea_id")
+  cedulaApoderado       String       @map("cedula_apoderado")
+  nombreApoderado       String       @map("nombre_apoderado")
+  fechaRegistro         DateTime     @default(now()) @map("fecha_registro")
+  activo                Boolean      @default(true)
+  
+  propietarioOtorgante  Propietario  @relation("PropietarioOtorgante", fields: [propietarioOtorganteId], references: [id], onDelete: Cascade)
+  asamblea              Asamblea     @relation(fields: [asambleaId], references: [id], onDelete: Cascade)
+  
+  @@unique([propietarioOtorganteId, asambleaId])
+  @@index([asambleaId])
+  @@map("poderes")
+}
+
+model Votante {
+  id                      String                    @id @default(uuid())
+  asambleaId              String                    @map("asamblea_id")
+  cedula                  String
+  nombreCompleto          String                    @map("nombre_completo")
+  coeficienteTotal        Decimal                   @map("coeficiente_total") @db.Decimal(10, 4)
+  propietariosRepresenta  Int                       @map("propietarios_representa")
+  detalleRepresentados    Json                      @map("detalle_representados")
+  confirmoAsistencia      Boolean                   @default(false) @map("confirmo_asistencia")
+  horaConfirmacion        DateTime?                 @map("hora_confirmacion")
+  createdAt               DateTime                  @default(now()) @map("created_at")
+  
+  asamblea                Asamblea                  @relation(fields: [asambleaId], references: [id], onDelete: Cascade)
+  votos                   Voto[]
+  confirmaciones          ConfirmacionAsistencia[]
+  
+  @@unique([asambleaId, cedula])
+  @@index([asambleaId])
+  @@map("votantes")
+}
+
+model Proposicion {
+  id                    String            @id @default(uuid())
+  asambleaId            String            @map("asamblea_id")
+  numeroOrden           Int               @map("numero_orden")
+  titulo                String
+  descripcion           String            @db.Text
+  tipoPregunta          String            @map("tipo_pregunta")
+  tipoMayoria           String            @map("tipo_mayoria")
+  porcentajeRequerido   Decimal           @map("porcentaje_requerido") @db.Decimal(5, 2)
+  estado                String            @default("pendiente")
+  inicioVotacion        DateTime?         @map("inicio_votacion")
+  finVotacion           DateTime?         @map("fin_votacion")
+  
+  asamblea              Asamblea          @relation(fields: [asambleaId], references: [id], onDelete: Cascade)
+  opciones              OpcionRespuesta[]
+  votos                 Voto[]
+  
+  @@unique([asambleaId, numeroOrden])
+  @@index([asambleaId])
+  @@map("proposiciones")
+}
+
+model OpcionRespuesta {
+  id              String        @id @default(uuid())
+  proposicionId   String        @map("proposicion_id")
+  orden           Int
+  texto           String
+  codigo          String
+  
+  proposicion     Proposicion   @relation(fields: [proposicionId], references: [id], onDelete: Cascade)
+  votos           Voto[]
+  
+  @@unique([proposicionId, codigo])
+  @@index([proposicionId])
+  @@map("opciones_respuesta")
+}
+
+model Voto {
+  id                        String          @id @default(uuid())
+  proposicionId             String          @map("proposicion_id")
+  votanteId                 String          @map("votante_id")
+  opcionId                  String          @map("opcion_id")
+  coeficienteAplicado       Decimal         @map("coeficiente_aplicado") @db.Decimal(10, 4)
+  propietariosRepresentados Int             @map("propietarios_representados")
+  timestamp                 DateTime        @default(now())
+  
+  proposicion               Proposicion     @relation(fields: [proposicionId], references: [id], onDelete: Cascade)
+  votante                   Votante         @relation(fields: [votanteId], references: [id], onDelete: Cascade)
+  opcion                    OpcionRespuesta @relation(fields: [opcionId], references: [id], onDelete: Cascade)
+  
+  @@unique([proposicionId, votanteId])
+  @@index([proposicionId])
+  @@index([votanteId])
+  @@map("votos")
+}
+
+model ConfirmacionAsistencia {
+  id                String    @id @default(uuid())
+  asambleaId        String    @map("asamblea_id")
+  votanteId         String    @map("votante_id")
+  horaConfirmacion  DateTime  @default(now()) @map("hora_confirmacion")
+  ubicacion         String?
+  
+  asamblea          Asamblea  @relation(fields: [asambleaId], references: [id], onDelete: Cascade)
+  votante           Votante   @relation(fields: [votanteId], references: [id], onDelete: Cascade)
+  
+  @@unique([asambleaId, votanteId])
+  @@index([asambleaId])
+  @@map("confirmaciones_asistencia")
+}
