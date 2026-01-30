@@ -10,6 +10,16 @@ import { ArrowLeft, Play, Square } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
+import { ListaVotantes } from '@/components/admin/ListaVotantes'
+
+interface Votante {
+  id: string
+  cedula: string
+  nombreCompleto: string
+  coeficienteTotal: number
+  propietariosRepresenta: number
+  createdAt: string
+}
 
 interface Asamblea {
   id: string
@@ -23,7 +33,8 @@ interface Asamblea {
   conjunto: {
     nombre: string
     coeficienteTotal: number
-  }
+  },
+  votantes?: Votante[] 
   _count: {
     votantes: number
     registros: number
@@ -59,6 +70,14 @@ export default function DetalleAsambleaPage({
 
   useEffect(() => {
     fetchAsamblea()
+  }, [id])
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchAsamblea()
+    }, 5000)
+    
+    return () => clearInterval(interval)
   }, [id])
 
   const fetchAsamblea = async () => {
@@ -262,6 +281,12 @@ export default function DetalleAsambleaPage({
             </div>
           </div>
         </div>
+         {/* Lista de Votantes */}
+         <div className="mt-6">
+          <ListaVotantes asambleaId={id} 
+           votantes={asamblea.votantes || []} />
+        </div>
+  
       </div>
 
       {/* Diálogo de Confirmación */}

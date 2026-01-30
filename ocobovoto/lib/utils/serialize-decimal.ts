@@ -7,6 +7,10 @@ export function serializeAsamblea(asamblea: any) {
       conjunto: asamblea.conjunto ? {
         ...asamblea.conjunto,
         coeficienteTotal: Number(asamblea.conjunto.coeficienteTotal)
-      } : undefined
+      } : undefined,
+      votantes: asamblea.votantes?.map((votante: any) => ({
+        ...votante,
+        coeficienteTotal: Number(votante.coeficienteTotal)
+      }))
     }
   }

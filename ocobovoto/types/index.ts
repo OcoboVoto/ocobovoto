@@ -52,3 +52,13 @@ export interface PropietarioCSV {
     error?: string
     message?: string
   }
+
+
+export interface Votante {
+  id: string
+  cedula: string
+  nombreCompleto: string
+  coeficienteTotal: number
+  propietariosRepresenta: number
+  detalleRepresentados: any
+}
