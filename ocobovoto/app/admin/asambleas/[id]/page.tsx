@@ -6,11 +6,13 @@ import { GeneradorQR } from '@/components/admin/GeneradorQR'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Toast } from '@/components/ui/toast'
-import { ArrowLeft, Play, Square } from 'lucide-react'
+import { ArrowLeft, Play, Plus, Square } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { ListaVotantes } from '@/components/admin/ListaVotantes'
+import { ControlVotacion } from '@/components/admin/ControlVotacion'
+import { FormularioProposicion } from '@/components/admin/FormularioPregunta'
 
 interface Votante {
   id: string
@@ -34,7 +36,8 @@ interface Asamblea {
     nombre: string
     coeficienteTotal: number
   },
-  votantes?: Votante[] 
+  proposiciones: any[]
+  votantes?: Votante[]
   _count: {
     votantes: number
     registros: number
@@ -50,7 +53,8 @@ export default function DetalleAsambleaPage({
   const router = useRouter()
   const [asamblea, setAsamblea] = useState<Asamblea | null>(null)
   const [loading, setLoading] = useState(true)
-  
+  const [mostrarFormProposicion, setMostrarFormProposicion] = useState(false)
+
   // Estados para diálogos y toasts
   const [dialogOpen, setDialogOpen] = useState(false)
   const [dialogConfig, setDialogConfig] = useState({
@@ -58,9 +62,9 @@ export default function DetalleAsambleaPage({
     description: '',
     confirmText: '',
     variant: 'default' as 'default' | 'success' | 'destructive',
-    action: () => {}
+    action: () => { }
   })
-  
+
   const [toastOpen, setToastOpen] = useState(false)
   const [toastConfig, setToastConfig] = useState({
     title: '',
@@ -75,8 +79,8 @@ export default function DetalleAsambleaPage({
   useEffect(() => {
     const interval = setInterval(() => {
       fetchAsamblea()
-    }, 5000)
-    
+    }, 30000)
+
     return () => clearInterval(interval)
   }, [id])
 
@@ -84,7 +88,7 @@ export default function DetalleAsambleaPage({
     try {
       const response = await fetch(`/api/asambleas/${id}`)
       const data = await response.json()
-      
+
       if (data.success) {
         setAsamblea(data.data)
       }
@@ -125,18 +129,18 @@ export default function DetalleAsambleaPage({
       })
 
       const data = await response.json()
-      
+
       if (data.success) {
         // Mostrar toast de éxito
         setToastConfig({
           title: nuevoEstado === 'activa' ? 'Asamblea Iniciada' : 'Asamblea Finalizada',
-          description: nuevoEstado === 'activa' 
-            ? 'Los propietarios ya pueden registrarse' 
+          description: nuevoEstado === 'activa'
+            ? 'Los propietarios ya pueden registrarse'
             : 'La asamblea ha sido finalizada exitosamente',
           variant: 'success'
         })
         setToastOpen(true)
-        
+
         // Recargar datos
         fetchAsamblea()
       }
@@ -203,8 +207,8 @@ export default function DetalleAsambleaPage({
                 </Button>
               )}
               {asamblea.estado === 'activa' && (
-                <Button onClick={() => mostrarConfirmacion('finalizada')}  
-                className="bg-gray-900 hover:bg-black text-white">
+                <Button onClick={() => mostrarConfirmacion('finalizada')}
+                  className="bg-gray-900 hover:bg-black text-white">
                   <Square className="mr-2 h-4 w-4 fill-white" />
                   Finalizar Asamblea
                 </Button>
@@ -250,11 +254,10 @@ export default function DetalleAsambleaPage({
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Quórum Actual</p>
-                  <p className={`text-2xl font-bold ${
-                    asamblea.quorumInicial >= asamblea.quorumRequerido
+                  <p className={`text-2xl font-bold ${asamblea.quorumInicial >= asamblea.quorumRequerido
                       ? 'text-green-600'
                       : 'text-orange-600'
-                  }`}>
+                    }`}>
                     {asamblea.quorumInicial.toFixed(1)}%
                   </p>
                 </div>
@@ -281,33 +284,80 @@ export default function DetalleAsambleaPage({
             </div>
           </div>
         </div>
-         {/* Lista de Votantes */}
-         <div className="mt-6">
-          <ListaVotantes asambleaId={id} 
-           votantes={asamblea.votantes || []} />
+        {/* Lista de Votantes */}
+        <div className="mt-6">
+          <ListaVotantes asambleaId={id}
+            votantes={asamblea.votantes || []} />
         </div>
-  
+
+
+        {/* SECCIÓN DE PROPOSICIONES */}
+        <div className="space-y-6">
+          <div className="flex justify-between items-center">
+            <h2 className="text-2xl font-bold text-gray-900">Proposiciones</h2>
+            {asamblea.estado !== 'finalizada' && (
+              <Button onClick={() => setMostrarFormProposicion(!mostrarFormProposicion)}>
+                <Plus className="mr-2 h-4 w-4" />
+                {mostrarFormProposicion ? 'Cancelar' : 'Nueva Proposición'}
+              </Button>
+            )}
+          </div>
+
+          {/* Formulario (condicional) */}
+          {mostrarFormProposicion && (
+            <FormularioProposicion
+              asambleaId={id}
+              onCreada={() => {
+                setMostrarFormProposicion(false)
+                fetchAsamblea()
+              }}
+            />
+          )}
+
+          {/* Lista de Proposiciones */}
+          {asamblea.proposiciones.length === 0 ? (
+            <div className="bg-white rounded-lg shadow-sm border p-12 text-center">
+              <p className="text-gray-600 mb-4">
+                No hay proposiciones creadas aún
+              </p>
+              <Button onClick={() => setMostrarFormProposicion(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Crear Primera Proposición
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {asamblea.proposiciones.map((proposicion) => (
+                <ControlVotacion
+                  key={proposicion.id}
+                  proposicion={proposicion}
+                  onActualizar={fetchAsamblea}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Diálogo de Confirmación */}
+        <ConfirmDialog
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          title={dialogConfig.title}
+          description={dialogConfig.description}
+          confirmText={dialogConfig.confirmText}
+          variant={dialogConfig.variant}
+          onConfirm={dialogConfig.action}
+        />
+
+        {/* Toast de Notificación */}
+        <Toast
+          open={toastOpen}
+          onOpenChange={setToastOpen}
+          title={toastConfig.title}
+          description={toastConfig.description}
+          variant={toastConfig.variant}
+        />
       </div>
-
-      {/* Diálogo de Confirmación */}
-      <ConfirmDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        title={dialogConfig.title}
-        description={dialogConfig.description}
-        confirmText={dialogConfig.confirmText}
-        variant={dialogConfig.variant}
-        onConfirm={dialogConfig.action}
-      />
-
-      {/* Toast de Notificación */}
-      <Toast
-        open={toastOpen}
-        onOpenChange={setToastOpen}
-        title={toastConfig.title}
-        description={toastConfig.description}
-        variant={toastConfig.variant}
-      />
     </AdminLayout>
   )
 }

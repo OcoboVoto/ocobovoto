@@ -23,9 +23,14 @@ export async function GET(
           },
         },
         votantes: {
-          include: {
-            votos: true,
-          },
+          select: {
+            id: true,
+            cedula: true,
+            nombreCompleto: true,
+            coeficienteTotal: true,
+            propietariosRepresenta: true,
+            createdAt: true,
+          }
         },
         _count: {
           select: {
@@ -51,6 +56,15 @@ export async function GET(
     })
   } catch (error) {
     console.error('Error en GET /api/asambleas/[id]:', error)
+
+    // Error específico de pool
+    if (error instanceof Error && error.message.includes('connection pool')) {
+      return NextResponse.json<ApiResponse>({
+        success: false,
+        error: 'Servidor ocupado. Reintentando...',
+      }, { status: 503 })
+    }
+
     return NextResponse.json<ApiResponse>({
       success: false,
       error: 'Error interno',
@@ -70,8 +84,9 @@ export async function PATCH(
 
     const asamblea = await prisma.asamblea.update({
       where: { id },
-      data: { estado },
+      data: { estado }
     })
+
 
     return NextResponse.json<ApiResponse>({
       success: true,
