@@ -8,17 +8,18 @@ import { Button } from '@/components/ui/button'
 interface GeneradorQRProps {
   asambleaId: string
   qrCodeData: string
+  url: string
 }
 
-export function GeneradorQR({ asambleaId, qrCodeData }: GeneradorQRProps) {
+export function GeneradorQR({ asambleaId, qrCodeData, url}: GeneradorQRProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {
     if (canvasRef.current) {
       // URL que los votantes escanearán
-      const registroUrl = `${window.location.origin}/registro/${asambleaId}`
+      //const registroUrl = `${window.location.origin}/registro/${asambleaId}`
       
-      QRCode.toCanvas(canvasRef.current, registroUrl, {
+      QRCode.toCanvas(canvasRef.current, url, {
         width: 300,
         margin: 2,
         color: {
@@ -28,6 +29,8 @@ export function GeneradorQR({ asambleaId, qrCodeData }: GeneradorQRProps) {
       })
     }
   }, [asambleaId])
+  
+  const titulo = url.includes('registro') ? 'Código QR de Registro' : 'Código QR de Votación'
 
   const descargarQR = () => {
     if (canvasRef.current) {
@@ -43,7 +46,7 @@ export function GeneradorQR({ asambleaId, qrCodeData }: GeneradorQRProps) {
     <div className="bg-white rounded-lg shadow-sm border p-6">
       <div className="flex items-center gap-2 mb-4">
         <QrCode className="h-5 w-5 text-indigo-600" />
-        <h3 className="text-lg font-semibold">Código QR de Registro</h3>
+        <h3 className="text-lg font-semibold">{titulo}</h3>
       </div>
 
       <div className="flex flex-col items-center gap-4">
@@ -53,10 +56,11 @@ export function GeneradorQR({ asambleaId, qrCodeData }: GeneradorQRProps) {
 
         <div className="text-center">
           <p className="text-sm text-gray-600 mb-2">
-            Los asistentes deben escanear este código para registrarse
+            {url.includes('registro') ? 'Los asistentes deben escanear este código para registrarse' : 
+            'Los asistentes deben escanear este código para votar en la asamblea'}
           </p>
           <p className="text-xs text-gray-500 font-mono">
-            {`${window.location.origin}/registro/${asambleaId}`}
+            {`${url}`}
           </p>
         </div>
 

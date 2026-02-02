@@ -219,14 +219,43 @@ export default function DetalleAsambleaPage({
         </div>
 
         {/* Grid Principal */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Columna Izquierda: QR */}
           <div className="lg:col-span-1">
             <GeneradorQR
               asambleaId={asamblea.id}
               qrCodeData={asamblea.qrCodeData}
+              url={`${window.location.origin}/registro/${asamblea.id}`}
             />
           </div>
+
+          {/* Link de Votación */}
+
+          <div className="lg:col-span-1">
+            <GeneradorQR
+              asambleaId={asamblea.id}
+              qrCodeData={asamblea.qrCodeData}
+              url={`${window.location.origin}/votar/${id}`}
+            />
+          </div>
+          {/*
+            <div className="bg-gray-50 rounded-lg p-3 mb-3">
+              <code className="text-sm text-indigo-600 break-all">
+                {`${window.location.origin}/votar/${id}`}
+              </code>
+            </div>
+            <Button
+              onClick={() => {
+                navigator.clipboard.writeText(`${window.location.origin}/votar/${id}`)
+                alert('Link copiado al portapapeles')
+              }}
+              variant="outline"
+              size="sm"
+              className="w-full"
+            >
+              Copiar Link
+            </Button>*/}
+
 
           {/* Columna Derecha: Info */}
           <div className="lg:col-span-2 space-y-6">
@@ -255,8 +284,8 @@ export default function DetalleAsambleaPage({
                 <div>
                   <p className="text-sm text-gray-600">Quórum Actual</p>
                   <p className={`text-2xl font-bold ${asamblea.quorumInicial >= asamblea.quorumRequerido
-                      ? 'text-green-600'
-                      : 'text-orange-600'
+                    ? 'text-green-600'
+                    : 'text-orange-600'
                     }`}>
                     {asamblea.quorumInicial.toFixed(1)}%
                   </p>

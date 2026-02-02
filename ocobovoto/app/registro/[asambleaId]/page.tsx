@@ -4,6 +4,7 @@ import { use, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { CheckCircle2, AlertCircle, Users, Building } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 
 interface Propietario {
   nombreCompleto: string
@@ -24,6 +25,7 @@ export default function RegistroPage({
   const [loading, setLoading] = useState(false)
   const [registrado, setRegistrado] = useState(false)
   const [error, setError] = useState('')
+  const router = useRouter()
 
   const buscarPropietario = async () => {
     if (cedula.length < 6) {
@@ -105,7 +107,7 @@ export default function RegistroPage({
               Ya puedes participar en las votaciones de la asamblea
             </p>
           </div>
-          <Button
+{/*           <Button
             onClick={() => {
               setRegistrado(false)
               setCedula('')
@@ -115,11 +117,33 @@ export default function RegistroPage({
             className="w-full"
           >
             Registrar Otro Votante
-          </Button>
+          </Button> */}
+          
+          {/* BOTONES ACTUALIZADOS */}
+          <div className="space-y-3">
+            <Button
+              onClick={() => router.push(`/votar/${asambleaId}`)}
+              className="w-full"
+            >
+              Ir a Votar
+            </Button>
+            <Button
+              onClick={() => {
+                setRegistrado(false)
+                setCedula('')
+                setPropietario(null)
+              }}
+              variant="outline"
+              className="w-full"
+            >
+              Registrar Otro Votante
+            </Button>
+          </div>
         </div>
       </div>
     )
   }
+
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 px-4">
