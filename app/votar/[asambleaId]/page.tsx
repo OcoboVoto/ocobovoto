@@ -3,7 +3,8 @@
 import { use, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { CheckCircle2, AlertCircle, Vote, LogOut } from 'lucide-react'
+import { CheckCircle2, AlertCircle, Vote, LogOut, UserCheck } from 'lucide-react'
+import { toast } from 'sonner'
 
 interface Proposicion {
     id: string
@@ -23,6 +24,7 @@ interface Votante {
     id: string
     nombreCompleto: string
     coeficienteTotal: number
+    confirmoAsistencia: boolean
 }
 
 export default function VotacionPage({
@@ -30,6 +32,7 @@ export default function VotacionPage({
 }: {
     params: Promise<{ asambleaId: string }>
 }) {
+    
     const [inicializando, setInicializando] = useState(true)
     const { asambleaId } = use(params)
     const [cedula, setCedula] = useState('')
@@ -39,11 +42,13 @@ export default function VotacionPage({
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
     const [votando, setVotando] = useState<string | null>(null)
+    const [mostrarAlertaConfirmacion, setMostrarAlertaConfirmacion] = useState(false)
+    const [confirmando, setConfirmando] = useState(false)
 
     const autenticar = () => autenticarConCedula(cedula)
 
     const autenticarConCedula = async (cedulaValue: string) => {
-        
+
         if (cedulaValue.length < 6) {
             setError('Ingresa una cédula válida')
             return
@@ -54,6 +59,7 @@ export default function VotacionPage({
         try {
             const response = await fetch(`/api/votacion/${asambleaId}?cedula=${cedulaValue}`)
             if (!response.ok) throw new Error('HTTP error')
+
             const data = await response.json()
             if (!data.success) throw new Error(data.error)
 
@@ -122,15 +128,15 @@ export default function VotacionPage({
     // Auto-autenticar si hay cédula en sessionStorage
     useEffect(() => {
         const restaurarSesion = async () => {
-          const cedulaGuardada = sessionStorage.getItem('cedula_votante')
-      
-          if (cedulaGuardada) {
-            await autenticarConCedula(cedulaGuardada)
-          }      
-          setInicializando(false)
+            const cedulaGuardada = sessionStorage.getItem('cedula_votante')
+
+            if (cedulaGuardada) {
+                await autenticarConCedula(cedulaGuardada)
+            }
+            setInicializando(false)
         }
         restaurarSesion()
-      }, [asambleaId])
+    }, [asambleaId])
 
     // Polling cada 10 segundos para nuevas proposiciones
     useEffect(() => {
@@ -141,6 +147,7 @@ export default function VotacionPage({
                     .then(data => {
                         if (data.success) {
                             setProposiciones(data.data.proposiciones)
+                            setVotante(data.data.votante)
                         }
                     })
             }, 10000)
@@ -148,6 +155,89 @@ export default function VotacionPage({
             return () => clearInterval(interval)
         }
     }, [autenticado, asambleaId, cedula])
+
+    // Verificar si necesita confirmar asistencia
+    useEffect(() => {
+        if (autenticado && votante) {
+            const verificarConfirmacion = async () => {
+                try {
+                    const response = await fetch(`/api/asambleas/${asambleaId}`)
+                    const data = await response.json()
+
+                    if (data.success && data.data.confirmacionActivada) {
+
+                        // Verificar si ya confirmó
+                        const yaConfirmo = data.data.votantes?.find(
+                            (v: any) => v.id === votante.id)
+
+                        if (yaConfirmo) {
+                            if (yaConfirmo.confirmoAsistencia) {
+                                setMostrarAlertaConfirmacion(false)
+                                if (!votante.confirmoAsistencia) {
+                                    setVotante(prev => prev ? {
+                                        ...prev,
+                                        confirmoAsistencia: true,
+                                    } : null)
+                                }
+                            } else {
+                                // Mostrar alerta para confirmar
+                                setMostrarAlertaConfirmacion(true)
+                            }
+                        }
+                    } else {
+                        setMostrarAlertaConfirmacion(false)
+                    }
+                } catch (error) {
+                    console.error('Error al verificar confirmación:', error)
+                }
+            }
+
+            verificarConfirmacion()
+            const interval = setInterval(verificarConfirmacion, 5000)
+            return () => clearInterval(interval)
+        }
+    }, [autenticado, votante, asambleaId])
+
+    const confirmarAsistencia = async () => {
+        if (!votante) return
+        setConfirmando(true)
+
+        try {
+            console.log('📤 Enviando confirmación...', {
+                asambleaId,
+                votanteId: votante.id,
+              })
+
+            const response = await fetch('/api/confirmacion', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    asambleaId,
+                    votanteId: votante?.id,
+                }),
+            })
+
+            const data = await response.json()
+            console.log('📥 Respuesta:', data)
+
+            if (data.success) {
+                // ACTUALIZAR EL ESTADO LOCAL DEL VOTANTE
+                setVotante(prev => prev ? {
+                    ...prev,
+                    confirmoAsistencia: true,
+                } : null)
+
+                setMostrarAlertaConfirmacion(false)
+                toast.success('Asistencia confirmada exitosamente')
+            } else {
+                toast.error('Error al confirmar asistencia: ' + data.error)
+            }
+        } catch (error) {
+            toast.error('Error al confirmar asistencia')
+        } finally {
+            setConfirmando(false)
+        }
+    }
 
     if (inicializando) {
         return (
@@ -235,6 +325,34 @@ export default function VotacionPage({
                     </div>
                 </div>
             </header>
+
+            {/* Alerta de Confirmación */}
+            {mostrarAlertaConfirmacion && (
+                <div className="bg-yellow-500 border-b-4 border-yellow-600">
+                    <div className="max-w-4xl mx-auto px-4 py-4">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <UserCheck className="h-6 w-6 text-white" />
+                                <div>
+                                    <p className="font-semibold text-white">
+                                        ¿Sigues presente en la asamblea?
+                                    </p>
+                                    <p className="text-sm text-yellow-100">
+                                        Por favor confirma tu asistencia para continuar participando
+                                    </p>
+                                </div>
+                            </div>
+                            <Button
+                                onClick={confirmarAsistencia}
+                                disabled={confirmando}
+                                className="bg-white text-yellow-700 hover:bg-yellow-50"
+                            >
+                                {confirmando ? 'Confirmando...' : 'Confirmar Asistencia'}
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Main Content */}
             <main className="max-w-4xl mx-auto px-4 py-8">

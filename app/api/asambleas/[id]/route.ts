@@ -29,6 +29,8 @@ export async function GET(
             nombreCompleto: true,
             coeficienteTotal: true,
             propietariosRepresenta: true,
+            confirmoAsistencia: true,
+            horaConfirmacion: true,
             createdAt: true,
           }
         },

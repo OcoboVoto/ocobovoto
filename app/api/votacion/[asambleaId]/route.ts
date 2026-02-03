@@ -25,6 +25,13 @@ export async function GET(
           cedula,
         },
       },
+      select: {
+        id: true,
+        cedula: true,
+        nombreCompleto: true,
+        coeficienteTotal: true,
+        confirmoAsistencia: true,  
+      },
     })
 
     if (!votante) {

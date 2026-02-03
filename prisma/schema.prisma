@@ -76,9 +76,11 @@ model Asamblea {
   quorumInicial           Decimal                   @default(0) @map("quorum_inicial") @db.Decimal(5, 2)
   quorumFinal             Decimal?                  @map("quorum_final") @db.Decimal(5, 2)
   confirmacionActivada    Boolean                   @default(false) @map("confirmacion_activada")
+  confirmacionCerrada     Boolean                   @default(false) @map("confirmacion_cerrada") 
   qrCodeData              String                    @map("qr_code_data")
   ordenDia                Json?                     @map("orden_dia")
   createdAt               DateTime                  @default(now()) @map("created_at")
+  
   
   conjunto                Conjunto                  @relation(fields: [conjuntoId], references: [id], onDelete: Cascade)
   proposiciones           Proposicion[]

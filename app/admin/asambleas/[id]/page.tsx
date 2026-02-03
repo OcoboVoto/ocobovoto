@@ -13,6 +13,7 @@ import { es } from 'date-fns/locale'
 import { ListaVotantes } from '@/components/admin/ListaVotantes'
 import { ControlVotacion } from '@/components/admin/ControlVotacion'
 import { FormularioProposicion } from '@/components/admin/FormularioPregunta'
+import { BotonConfirmarAsistencia } from '@/components/admin/BotonConfirmarAsistencia'
 
 interface Votante {
   id: string
@@ -31,6 +32,7 @@ interface Asamblea {
   estado: string
   quorumRequerido: number
   quorumInicial: number
+  quorumFinal: number
   qrCodeData: string
   conjunto: {
     nombre: string
@@ -38,6 +40,8 @@ interface Asamblea {
   },
   proposiciones: any[]
   votantes?: Votante[]
+  confirmacionActivada: boolean
+  confirmacionCerrada: boolean
   _count: {
     votantes: number
     registros: number
@@ -282,7 +286,7 @@ export default function DetalleAsambleaPage({
                   </p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Quórum Actual</p>
+                  <p className="text-sm text-gray-600">Quórum Incial</p>
                   <p className={`text-2xl font-bold ${asamblea.quorumInicial >= asamblea.quorumRequerido
                     ? 'text-green-600'
                     : 'text-orange-600'
@@ -291,6 +295,32 @@ export default function DetalleAsambleaPage({
                   </p>
                 </div>
               </div>
+              {/* Mostrar Quórum Final si hay confirmación */}
+              {asamblea.confirmacionActivada && asamblea.quorumFinal !== null && (
+                <div className="mt-4 pt-4 border-t">
+                  <div className="bg-blue-50 rounded-lg p-4">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <p className="text-sm text-blue-700 mb-1">Quórum Final (Después de Confirmación)</p>
+                        <p className={`text-3xl font-bold ${
+                          asamblea.quorumFinal >= asamblea.quorumRequerido
+                            ? 'text-green-600'
+                            : 'text-red-600'
+                        }`}>
+                          {asamblea.quorumFinal.toFixed(1)}%
+                        </p>
+                      </div>
+                      {asamblea.quorumFinal < asamblea.quorumRequerido && (
+                        <div className="text-right">
+                          <span className="px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm font-medium">
+                            ⚠️ Quórum Perdido
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Info General */}
@@ -313,6 +343,18 @@ export default function DetalleAsambleaPage({
             </div>
           </div>
         </div>
+
+        {/* Confirmación de Asistencia */}
+        {asamblea.estado === 'activa' && (
+          <div className="mb-6">
+            <BotonConfirmarAsistencia
+              asambleaId={id}
+              confirmacionActivada={asamblea.confirmacionActivada}
+              confirmacionCerrada={asamblea.confirmacionCerrada} 
+              onActualizar={fetchAsamblea}
+            />
+          </div>
+        )}
         {/* Lista de Votantes */}
         <div className="mt-6">
           <ListaVotantes asambleaId={id}

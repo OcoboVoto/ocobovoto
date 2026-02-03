@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
           select: {
             votantes: true,
             proposiciones: true,
+            confirmaciones: true,
           },
         },
       },
