@@ -14,6 +14,7 @@ export async function POST(
       where: { id },
       data: {
         confirmacionActivada: true,
+        confirmacionCerrada: false
       },
     })
 

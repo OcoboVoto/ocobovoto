@@ -6,7 +6,7 @@ import { GeneradorQR } from '@/components/admin/GeneradorQR'
 import { Button } from '@/components/ui/button'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Toast } from '@/components/ui/toast'
-import { ArrowLeft, Play, Plus, Square } from 'lucide-react'
+import { ArrowLeft, Badge, Play, Plus, Square } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -14,6 +14,7 @@ import { ListaVotantes } from '@/components/admin/ListaVotantes'
 import { ControlVotacion } from '@/components/admin/ControlVotacion'
 import { FormularioProposicion } from '@/components/admin/FormularioPregunta'
 import { BotonConfirmarAsistencia } from '@/components/admin/BotonConfirmarAsistencia'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 interface Votante {
   id: string
@@ -64,8 +65,10 @@ export default function DetalleAsambleaPage({
   const [dialogConfig, setDialogConfig] = useState({
     title: '',
     description: '',
-    confirmText: '',
+    confirmText: 'Aceptar',
+    cancelText: 'Cancelar',
     variant: 'default' as 'default' | 'success' | 'destructive',
+    hideCancel: false,
     action: () => { }
   })
 
@@ -109,7 +112,9 @@ export default function DetalleAsambleaPage({
         title: 'Iniciar Asamblea',
         description: '¿Estás seguro de iniciar la asamblea? Los propietarios podrán comenzar a registrarse con el código QR.',
         confirmText: 'Iniciar Asamblea',
+        cancelText: 'Cancelar',
         variant: 'success',
+        hideCancel: false,
         action: () => cambiarEstado('activa')
       })
     } else if (nuevoEstado === 'finalizada') {
@@ -117,7 +122,9 @@ export default function DetalleAsambleaPage({
         title: 'Finalizar Asamblea',
         description: 'Al finalizar la asamblea ya no se podrán registrar más votantes ni realizar votaciones. Esta acción no se puede deshacer.',
         confirmText: 'Finalizar',
+        cancelText: 'Cancelar',
         variant: 'destructive',
+        hideCancel: false,
         action: () => cambiarEstado('finalizada')
       })
     }
@@ -233,7 +240,7 @@ export default function DetalleAsambleaPage({
             />
           </div>
 
-          {/* Link de Votación */}
+          {/* QR de Votación */}
 
           <div className="lg:col-span-1">
             <GeneradorQR
@@ -242,31 +249,15 @@ export default function DetalleAsambleaPage({
               url={`${window.location.origin}/votar/${id}`}
             />
           </div>
-          {/*
-            <div className="bg-gray-50 rounded-lg p-3 mb-3">
-              <code className="text-sm text-indigo-600 break-all">
-                {`${window.location.origin}/votar/${id}`}
-              </code>
-            </div>
-            <Button
-              onClick={() => {
-                navigator.clipboard.writeText(`${window.location.origin}/votar/${id}`)
-                alert('Link copiado al portapapeles')
-              }}
-              variant="outline"
-              size="sm"
-              className="w-full"
-            >
-              Copiar Link
-            </Button>*/}
+
 
 
           {/* Columna Derecha: Info */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-1 space-y-6">
             {/* Estadísticas */}
             <div className="bg-white rounded-lg shadow-sm border p-6">
               <h3 className="text-lg font-semibold mb-4">Estadísticas</h3>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
                   <p className="text-sm text-gray-600">Total Registros</p>
                   <p className="text-3xl font-bold text-gray-900">
@@ -302,11 +293,10 @@ export default function DetalleAsambleaPage({
                     <div className="flex justify-between items-center">
                       <div>
                         <p className="text-sm text-blue-700 mb-1">Quórum Final (Después de Confirmación)</p>
-                        <p className={`text-3xl font-bold ${
-                          asamblea.quorumFinal >= asamblea.quorumRequerido
-                            ? 'text-green-600'
-                            : 'text-red-600'
-                        }`}>
+                        <p className={`text-3xl font-bold ${asamblea.quorumFinal >= asamblea.quorumRequerido
+                          ? 'text-green-600'
+                          : 'text-red-600'
+                          }`}>
                           {asamblea.quorumFinal.toFixed(1)}%
                         </p>
                       </div>
@@ -322,11 +312,12 @@ export default function DetalleAsambleaPage({
                 </div>
               )}
             </div>
-
+          </div>
             {/* Info General */}
+            <div className="lg:col-span-1 space-y-6">
             <div className="bg-white rounded-lg shadow-sm border p-6">
               <h3 className="text-lg font-semibold mb-4">Información General</h3>
-              <dl className="space-y-3">
+              <dl className="space-y-2">
                 <div className="flex justify-between">
                   <dt className="text-gray-600">Estado:</dt>
                   <dd className="font-medium capitalize">{asamblea.estado}</dd>
@@ -339,96 +330,120 @@ export default function DetalleAsambleaPage({
                   <dt className="text-gray-600">Conjunto:</dt>
                   <dd className="font-medium">{asamblea.conjunto.nombre}</dd>
                 </div>
+                <div className="flex justify-between">
+                  <dt className="text-gray-600">Tipo:</dt>
+                  <dd className="font-medium">{asamblea.tipo}</dd>
+                </div>
               </dl>
             </div>
           </div>
         </div>
 
         {/* Confirmación de Asistencia */}
+        <div className="mt-12">
         {asamblea.estado === 'activa' && (
           <div className="mb-6">
             <BotonConfirmarAsistencia
               asambleaId={id}
-              confirmacionActivada={asamblea.confirmacionActivada}
-              confirmacionCerrada={asamblea.confirmacionCerrada} 
               onActualizar={fetchAsamblea}
             />
           </div>
         )}
+        </div>
         {/* Lista de Votantes */}
-        <div className="mt-6">
+        <div className="mt-10">
           <ListaVotantes asambleaId={id}
             votantes={asamblea.votantes || []} />
         </div>
 
 
         {/* SECCIÓN DE PROPOSICIONES */}
-        <div className="space-y-6">
-          <div className="flex justify-between items-center">
-            <h2 className="text-2xl font-bold text-gray-900">Proposiciones</h2>
-            {asamblea.estado !== 'finalizada' && (
-              <Button onClick={() => setMostrarFormProposicion(!mostrarFormProposicion)}>
-                <Plus className="mr-2 h-4 w-4" />
-                {mostrarFormProposicion ? 'Cancelar' : 'Nueva Proposición'}
-              </Button>
+        <div className="mt-12">
+          <div className="bg-white rounded-lg shadow-sm border p-6 space-y-6">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-gray-900">Votaciones</h2>
+              {asamblea.estado !== 'finalizada' && (
+                <Button onClick={() => setMostrarFormProposicion(!mostrarFormProposicion)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  {mostrarFormProposicion ? 'Cancelar' : 'Nueva votación'}
+                </Button>
+              )}
+            </div>
+
+            {/* Formulario (condicional) */}
+            {mostrarFormProposicion && (
+              <FormularioProposicion
+                asambleaId={id}
+                onResultado={({ success, message }) => {
+                  setDialogConfig({
+                    title: success ? 'Proposición creada' : 'Error',
+                    description: message,
+                    confirmText: 'Aceptar',
+                    cancelText: 'Cancelar',
+                    variant: success ? 'success' : 'destructive',
+                    hideCancel: true,
+                    action: () => {
+                      if (success) {
+                        setMostrarFormProposicion(false)
+                        fetchAsamblea()
+                      }
+                    }
+                  })
+                  setDialogOpen(true)
+                }}
+              />
+            )}
+
+            {/* Lista de Proposiciones */}
+            {asamblea.proposiciones.length === 0 ? (
+              <div className="bg-white rounded-lg shadow-sm border p-12 text-center">
+                <p className="text-gray-600 mb-4">
+                  No hay votaciones creadas aún
+                </p>
+                <Button onClick={() => setMostrarFormProposicion(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Crear Primera votación
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {asamblea.proposiciones.map((proposicion) => (
+                  <ControlVotacion
+                    key={proposicion.id}
+                    proposicion={proposicion}
+                    onActualizar={fetchAsamblea}
+                  />
+                ))}
+              </div>
             )}
           </div>
-
-          {/* Formulario (condicional) */}
-          {mostrarFormProposicion && (
-            <FormularioProposicion
-              asambleaId={id}
-              onCreada={() => {
-                setMostrarFormProposicion(false)
-                fetchAsamblea()
-              }}
-            />
-          )}
-
-          {/* Lista de Proposiciones */}
-          {asamblea.proposiciones.length === 0 ? (
-            <div className="bg-white rounded-lg shadow-sm border p-12 text-center">
-              <p className="text-gray-600 mb-4">
-                No hay proposiciones creadas aún
-              </p>
-              <Button onClick={() => setMostrarFormProposicion(true)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Crear Primera Proposición
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {asamblea.proposiciones.map((proposicion) => (
-                <ControlVotacion
-                  key={proposicion.id}
-                  proposicion={proposicion}
-                  onActualizar={fetchAsamblea}
-                />
-              ))}
-            </div>
-          )}
         </div>
-
-        {/* Diálogo de Confirmación */}
-        <ConfirmDialog
-          open={dialogOpen}
-          onOpenChange={setDialogOpen}
-          title={dialogConfig.title}
-          description={dialogConfig.description}
-          confirmText={dialogConfig.confirmText}
-          variant={dialogConfig.variant}
-          onConfirm={dialogConfig.action}
-        />
-
-        {/* Toast de Notificación */}
-        <Toast
-          open={toastOpen}
-          onOpenChange={setToastOpen}
-          title={toastConfig.title}
-          description={toastConfig.description}
-          variant={toastConfig.variant}
-        />
       </div>
+
+      {/* Diálogo de Confirmación */}
+      <ConfirmDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        title={dialogConfig.title}
+        description={dialogConfig.description}
+        confirmText={dialogConfig.confirmText}
+        cancelText={dialogConfig.cancelText}
+        variant={dialogConfig.variant}
+        hideCancel={dialogConfig.hideCancel}
+        onConfirm={() => {
+          dialogConfig.action()
+          setDialogOpen(false)
+        }}
+      />
+
+      {/* Toast de Notificación */}
+      <Toast
+        open={toastOpen}
+        onOpenChange={setToastOpen}
+        title={toastConfig.title}
+        description={toastConfig.description}
+        variant={toastConfig.variant}
+      />
     </AdminLayout>
   )
 }

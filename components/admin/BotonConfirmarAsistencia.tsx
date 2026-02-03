@@ -5,44 +5,101 @@ import { Button } from '@/components/ui/button'
 import { UserCheck, CheckCircle2, Users } from 'lucide-react'
 import { toast } from 'sonner'
 
+type EstadoConfirmacion = 'never-used' | 'active' | 'closed'
+
 interface BotonConfirmarAsistenciaProps {
     asambleaId: string
-    confirmacionActivada: boolean
-    confirmacionCerrada?: boolean
     onActualizar?: () => void
 }
 
-export function BotonConfirmarAsistencia({
-    asambleaId,
-    confirmacionActivada: inicialActivada,
-    confirmacionCerrada: inicialCerrada = false,
-    onActualizar,
-}: BotonConfirmarAsistenciaProps) {
-    const [activada, setActivada] = useState(inicialActivada)
-    const [cerrada, setCerrada] = useState(inicialCerrada)
+export function BotonConfirmarAsistencia({ asambleaId, onActualizar, }: BotonConfirmarAsistenciaProps) {
+
     const [activando, setActivando] = useState(false)
     const [cerrando, setCerrando] = useState(false)
     const [confirmaciones, setConfirmaciones] = useState(0)
     const [totalVotantes, setTotalVotantes] = useState(0)
-    const [tiempoRestante, setTiempoRestante] = useState(300)
+    const [tiempoRestante, setTiempoRestante] = useState(60)
+    const [estado, setEstado] = useState<EstadoConfirmacion>('never-used')
+    const [loading, setLoading] = useState(false)
+
 
     useEffect(() => {
-        if (activada && !cerrada) {
-            const interval = setInterval(() => {
-                setTiempoRestante(prev => {
-                    if (prev <= 1) {
-                        cerrarConfirmacion()
-                        return 0
-                    }
-                    return prev - 1
-                })
-            }, 1000)
+        cargarEstadoAsamblea()
+    }, [asambleaId])
 
-            return () => clearInterval(interval)
+    const cargarEstadoAsamblea = async () => {
+        try {
+            const response = await fetch(`/api/asambleas/${asambleaId}`)
+            const data = await response.json()
+            if (!data.success) return
+            const asamblea = data.data
+
+            if (asamblea.confirmacionCerrada) {
+                setEstado('closed')
+                setTiempoRestante(0)
+            } else if (asamblea.confirmacionActivada) {
+                setEstado('active')
+            } else {
+                setEstado('never-used')
+            }
+
+            actualizarConteo(asamblea)
+        } catch (e) {
+            console.error('Error cargando estado de asamblea', e)
         }
-    }, [activada, cerrada])
+    }
+
+    //Timer solo si está activa
+    useEffect(() => {
+        if (estado !== 'active') return
+        const interval = setInterval(() => {
+            setTiempoRestante(prev => {
+                if (prev <= 1) {
+                    cerrarConfirmacion()
+                    return 0
+                }
+                return prev - 1
+            })
+        }, 1000)
+
+        return () => clearInterval(interval)
+    }, [estado])
+
+
+    //Polling
+    useEffect(() => {
+        if (estado !== 'active') return
+
+        const interval = setInterval(cargarEstadoAsamblea, 3000)
+        return () => clearInterval(interval)
+    }, [estado])
+
+    //Acciones
+    const activarConfirmacion = async () => {
+        setActivando(true)
+        try {
+            const response = await fetch(`/api/asambleas/${asambleaId}/confirmar-asistencia`, {
+                method: 'POST',
+            })
+            const data = await response.json()
+
+            if (data.success) {
+                //setEstado('active')
+                await cargarEstadoAsamblea()
+                toast.success('Confirmación de asistencia activada. Los votantes recibirán la notificación.')
+                onActualizar?.()
+            } else {
+                toast.error('Error al activar confirmación: ' + data.error)
+            }
+        } catch (error) {
+            toast.error('Error al activar confirmación')
+        } finally {
+            setActivando(false)
+                }
+    }
 
     const cerrarConfirmacion = async () => {
+        if (estado !== 'active') return
         setCerrando(true)
         try {
             const response = await fetch(`/api/asambleas/${asambleaId}/cerrar-confirmacion`, {
@@ -51,9 +108,10 @@ export function BotonConfirmarAsistencia({
 
             const data = await response.json()
             if (data.success) {
-                setCerrada(true)
-                onActualizar?.()
+                setEstado('closed')
+                setTiempoRestante(0)
                 toast.success('Confirmación cerrada. ' + data.data.totalConfirmados + ' de ' + data.data.totalVotantes + ' confirmaron.')
+                onActualizar?.()
             } else {
                 toast.error('Error al cerrar confirmación: ' + data.error)
             }
@@ -64,73 +122,20 @@ export function BotonConfirmarAsistencia({
         }
     }
 
+    const actualizarConteo = (asamblea: any) => {
+        const votantes = asamblea.votantes ?? []
+        const confirmados = votantes.filter((v: any) => v.confirmoAsistencia)
+        setConfirmaciones(confirmados.length)
+        setTotalVotantes(votantes.length)
+    }
+
     const formatearTiempo = (segundos: number) => {
         const mins = Math.floor(segundos / 60)
         const secs = segundos % 60
         return `${mins}:${secs.toString().padStart(2, '0')}`
     }
 
-    useEffect(() => {
-        if (activada) {
-            fetchEstadoConfirmacion()
-            const interval = setInterval(fetchEstadoConfirmacion, 3000)
-            return () => clearInterval(interval)
-        }
-    }, [activada, asambleaId])
-
-    const fetchEstadoConfirmacion = async () => {
-        try {
-            const response = await fetch(`/api/asambleas/${asambleaId}`)
-            const data = await response.json()
-
-            if (data.success) {
-                const asamblea = data.data
-                // CONTAR VOTANTES QUE CONFIRMARON
-                const votantes = data.data.votantes || []
-                const confirmados = votantes.filter((v: any) => v.confirmoAsistencia === true)
-                setConfirmaciones(confirmados.length)
-                setTotalVotantes(votantes.length)
-
-                console.log('📊 Estado confirmación:', {
-                    confirmados: confirmados.length,
-                    total: votantes.length,
-                    votantes: votantes.map((v: any) => ({
-                        nombre: v.nombreCompleto,
-                        confirmo: v.confirmoAsistencia,
-                    }))
-                })
-
-            }
-        } catch (error) {
-            console.error('Error al cargar confirmaciones:', error)
-        }
-    }
-
-    const activarConfirmacion = async () => {
-        setActivando(true)
-
-        try {
-            const response = await fetch(`/api/asambleas/${asambleaId}/confirmar-asistencia`, {
-                method: 'POST',
-            })
-
-            const data = await response.json()
-
-            if (data.success) {
-                setActivada(true)
-                onActualizar?.()
-                toast.success('Confirmación de asistencia activada. Los votantes recibirán la notificación.')
-            } else {
-                toast.error('Error al activar confirmación: ' + data.error)
-            }
-        } catch (error) {
-            toast.error('Error al activar confirmación')
-        } finally {
-            setActivando(false)
-        }
-    }
-
-    if (!activada) {
+    if (estado === 'never-used') {
         return (
             <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg p-6">
                 <div className="flex items-start gap-4">
@@ -158,7 +163,7 @@ export function BotonConfirmarAsistencia({
             </div>
         )
     }
-    if (activada && !cerrada) {
+    if (estado === 'active') {
         return (
             <div className="bg-green-50 border-2 border-green-400 rounded-lg p-6">
                 <div className="flex items-start gap-4">
@@ -215,24 +220,24 @@ export function BotonConfirmarAsistencia({
             </div>
         )
     }
-    if (cerrada) {
-        return (
-            <div className="bg-gray-50 border-2 border-gray-300 rounded-lg p-6">
-                <div className="flex items-start gap-4">
-                    <div className="p-3 bg-gray-200 rounded-lg">
-                        <CheckCircle2 className="h-6 w-6 text-gray-600" />
-                    </div>
-                    <div className="flex-1">
-                        <h3 className="font-bold text-gray-900 mb-2">
-                            Confirmación Cerrada
-                        </h3>
-                        <p className="text-sm text-gray-700">
-                            {confirmaciones} de {totalVotantes} votantes confirmaron su asistencia.
-                            El quórum final ha sido calculado.
-                        </p>
-                    </div>
+
+    return (
+        <div className="bg-gray-50 border-2 border-gray-300 rounded-lg p-6">
+            <div className="flex items-start gap-4">
+                <div className="p-3 bg-gray-200 rounded-lg">
+                    <CheckCircle2 className="h-6 w-6 text-gray-600" />
+                </div>
+                <div className="flex-1">
+                    <h3 className="font-bold text-gray-900 mb-2">
+                        Confirmación Cerrada
+                    </h3>
+                    <p className="text-sm text-gray-700">
+                        {confirmaciones} de {totalVotantes} votantes confirmaron su asistencia.
+                        El quórum final ha sido calculado.
+                    </p>
                 </div>
             </div>
-        )
-    }
+        </div>
+    )
+
 }

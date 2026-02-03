@@ -6,6 +6,19 @@ const prisma = new PrismaClient()
 async function main() {
   console.log('🌱 Iniciando seed...')
 
+   //0. Crear Super Admin
+   const superAdminPassword = await bcrypt.hash('superadmin123', 10)
+   const superAdmin = await prisma.superAdmin.upsert({
+     where: { email: 'superadmin@votoasamblea.com' },
+     update: {},
+     create: {
+       email: 'superadmin@votoasamblea.com',
+       passwordHash: superAdminPassword,
+       nombre: 'Super Administrador',
+     },
+   })
+   console.log('✅ Super Admin creado:', superAdmin.email)
+
   // 1. Crear Conjunto de prueba
   const conjunto = await prisma.conjunto.upsert({
     where: { nit: '900123456-7' },

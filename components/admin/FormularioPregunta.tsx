@@ -4,13 +4,17 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Plus, Trash, Save } from 'lucide-react'
+import { Toast } from '../ui/toast'
 
 interface FormularioProposicionProps {
   asambleaId: string
-  onCreada?: () => void
+  onResultado?: (result: {
+    success: boolean
+    message: string
+  }) => void
 }
 
-export function FormularioProposicion({ asambleaId, onCreada }: FormularioProposicionProps) {
+export function FormularioProposicion({ asambleaId, onResultado }: FormularioProposicionProps) {
   const [titulo, setTitulo] = useState('')
   const [descripcion, setDescripcion] = useState('')
   const [tipoPregunta, setTipoPregunta] = useState<'binaria' | 'multiple'>('binaria')
@@ -59,15 +63,23 @@ export function FormularioProposicion({ asambleaId, onCreada }: FormularioPropos
       const data = await response.json()
 
       if (data.success) {
-        alert('Pregunta creada')
         setTitulo('')
         setDescripcion('')
-        onCreada?.()
+        onResultado?.({
+          success: true,
+          message: 'La pregunta fue creada correctamente y ya está disponible para votación.'
+        })
       } else {
-        alert('❌ ' + data.error)
+        onResultado?.({
+          success: false,
+          message: data.error || 'Error al crear la proposición'
+        })
       }
     } catch (error) {
-      alert('Error de conexión')
+      onResultado?.({
+        success: false,
+        message: 'Error de conexión con el servidor'
+      })
     } finally {
       setGuardando(false)
     }

@@ -41,7 +41,8 @@ export async function POST(
       where: { id },
       data: {
         quorumFinal,
-        // Mantener confirmacionActivada en true para el historial
+        confirmacionActivada: false,
+        confirmacionCerrada: true
       },
     })
 

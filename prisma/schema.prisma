@@ -58,11 +58,23 @@ model UsuarioAdmin {
   email         String    @unique
   passwordHash  String    @map("password_hash")
   nombre        String
+  activo        Boolean   @default(true)
   createdAt     DateTime  @default(now()) @map("created_at")
+  createdBy     String?   @map("created_by")
   
   conjunto      Conjunto  @relation(fields: [conjuntoId], references: [id], onDelete: Cascade)
   
   @@map("usuarios_admin")
+}
+
+model SuperAdmin {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  passwordHash  String    @map("password_hash")
+  nombre        String
+  createdAt     DateTime  @default(now()) @map("created_at")
+  
+  @@map("super_admins")
 }
 
 model Asamblea {

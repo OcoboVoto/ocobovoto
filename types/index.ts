@@ -53,7 +53,10 @@ export interface PropietarioCSV {
     message?: string
   }
 
-
+  // ============================================
+  // VOTANTES
+  // ============================================
+  
 export interface Votante {
   id: string
   cedula: string
@@ -61,4 +64,33 @@ export interface Votante {
   coeficienteTotal: number
   propietariosRepresenta: number
   detalleRepresentados: any
+}
+
+// ============================================
+// SUPER ADMIN
+// ============================================
+
+export interface SuperAdminData {
+  id: string
+  email: string
+  nombre: string
+}
+
+
+export interface ConjuntoConAdmin {
+  id: string
+  nombre: string
+  nit: string
+  coeficienteTotal: number
+  createdAt: string
+  admin: {
+    id: string
+    email: string
+    nombre: string
+    activo: boolean
+  } | null
+  _count: {
+    asambleas: number
+    propietarios: number
+  }
 }

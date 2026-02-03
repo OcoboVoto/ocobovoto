@@ -55,13 +55,13 @@ export async function POST(request: NextRequest) {
     })
 
     if (yaConfirmo) {
-      console.log('⚠️ Ya había confirmado')
+      console.log('Ya había confirmado')
       return NextResponse.json<ApiResponse>({
         success: false,
         error: 'Ya confirmaste tu asistencia',
       }, { status: 400 })
     }
-    console.log('✅ Registrando confirmación...')
+    console.log('Registrando confirmación...')
     // Registrar confirmación
     await prisma.confirmacionAsistencia.create({
       data: {
