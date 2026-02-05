@@ -4,7 +4,6 @@ import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Plus, Trash, Save } from 'lucide-react'
-import { Toast } from '../ui/toast'
 
 interface FormularioProposicionProps {
   asambleaId: string
