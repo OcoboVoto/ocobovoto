@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { LogOut, Shield, Building2, Users } from 'lucide-react'
-import { ConfirmDialog } from '../ui/confirm-dialog'
 
 interface SuperAdminLayoutProps {
     children: React.ReactNode
@@ -42,13 +41,15 @@ export function SuperAdminLayout({ children }: SuperAdminLayoutProps) {
 
     const handleLogout = async () => {
         try {
-          await fetch('/api/auth/logout', { method: 'POST' })
-          router.push('/super-login')
-          router.refresh()
+            await fetch('/api/auth/super-logout', { method: 'POST' })
+            document.cookie = 'super-admin-session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+
+            router.push('/super-login')
+            router.refresh()
         } catch (error) {
-          console.error('Error al cerrar sesión:', error)
+            console.error('Error al cerrar sesión:', error)
         }
-      }
+    }
 
     return (
         <div className="min-h-screen bg-slate-50">

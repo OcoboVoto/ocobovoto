@@ -1,5 +1,3 @@
-// lib/services/propietarios-validator.ts
-
 import { PropietarioCSV, PropietarioValidado, ResultadoValidacion } from '@/types'
 
 export class PropietariosValidator {

@@ -19,25 +19,14 @@ import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import type { ConjuntoConAdmin } from '@/types'
 import { FormularioConjunto } from '@/components/super-admin/FormularioConjunto'
-import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { useConfirmDialog } from '@/components/hooks/useConfirmDialog'
 
 export default function SuperAdminDashboard() {
     const router = useRouter()
     const [conjuntos, setConjuntos] = useState<ConjuntoConAdmin[]>([])
     const [loading, setLoading] = useState(true)
     const [mostrarFormConjunto, setMostrarFormConjunto] = useState(false)
-    // Estados para diálogos y toasts
-    const [dialogOpen, setDialogOpen] = useState(false)
-    const [dialogConfig, setDialogConfig] = useState({
-        title: '',
-        description: '',
-        confirmText: 'Aceptar',
-        cancelText: 'Cancelar',
-        variant: 'default' as 'default' | 'success' | 'destructive',
-        hideCancel: false,
-        action: () => { }
-    })
-
+    const { confirm, Dialog } = useConfirmDialog()
 
     useEffect(() => {
         fetchConjuntos()
@@ -268,40 +257,25 @@ export default function SuperAdminDashboard() {
                 <FormularioConjunto
                     onClose={() => setMostrarFormConjunto(false)}
                     onResultado={({ success, message }) => {
-                        setDialogConfig({
-                            title: success ? 'Conjunto creado' : 'Error',
-                            description: message,
-                            confirmText: 'Aceptar',
-                            cancelText: 'Cancelar',
-                            variant: success ? 'success' : 'destructive',
-                            hideCancel: true,
-                            action: () => {
-                                if (success) {
-                                    setMostrarFormConjunto(false)
-                                    fetchConjuntos()
-                                }
+                        confirm({
+                          title: success ? 'Conjunto creado' : 'Error',
+                          description: message,
+                          confirmText: 'Aceptar',
+                          variant: success ? 'success' : 'destructive',
+                          hideCancel: true,
+                          onConfirm: () => {
+                            if (success) {
+                              setMostrarFormConjunto(false)
+                              fetchConjuntos()
                             }
+                          }
                         })
-                        setDialogOpen(true)
-                    }}
+                      }}
                 />
             )}
 
             {/* Diálogo de Confirmación */}
-            <ConfirmDialog
-                open={dialogOpen}
-                onOpenChange={setDialogOpen}
-                title={dialogConfig.title}
-                description={dialogConfig.description}
-                confirmText={dialogConfig.confirmText}
-                cancelText={dialogConfig.cancelText}
-                variant={dialogConfig.variant}
-                hideCancel={dialogConfig.hideCancel}
-                onConfirm={() => {
-                    dialogConfig.action()
-                    setDialogOpen(false)
-                }}
-            />
+            {Dialog}
         </SuperAdminLayout>
     )
 }

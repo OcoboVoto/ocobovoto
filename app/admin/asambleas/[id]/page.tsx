@@ -4,7 +4,6 @@ import { use, useEffect, useState } from 'react'
 import { AdminLayout } from '@/components/layouts/AdminLayout'
 import { GeneradorQR } from '@/components/admin/GeneradorQR'
 import { Button } from '@/components/ui/button'
-import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Toast } from '@/components/ui/toast'
 import { ArrowLeft, Badge, Play, Plus, Square } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -14,7 +13,7 @@ import { ListaVotantes } from '@/components/admin/ListaVotantes'
 import { ControlVotacion } from '@/components/admin/ControlVotacion'
 import { FormularioProposicion } from '@/components/admin/FormularioPregunta'
 import { BotonConfirmarAsistencia } from '@/components/admin/BotonConfirmarAsistencia'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { useConfirmDialog } from '@/components/hooks/useConfirmDialog'
 
 interface Votante {
   id: string
@@ -59,18 +58,9 @@ export default function DetalleAsambleaPage({
   const [asamblea, setAsamblea] = useState<Asamblea | null>(null)
   const [loading, setLoading] = useState(true)
   const [mostrarFormProposicion, setMostrarFormProposicion] = useState(false)
+  const { confirm, Dialog } = useConfirmDialog()
 
-  // Estados para diálogos y toasts
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [dialogConfig, setDialogConfig] = useState({
-    title: '',
-    description: '',
-    confirmText: 'Aceptar',
-    cancelText: 'Cancelar',
-    variant: 'default' as 'default' | 'success' | 'destructive',
-    hideCancel: false,
-    action: () => { }
-  })
+
 
   const [toastOpen, setToastOpen] = useState(false)
   const [toastConfig, setToastConfig] = useState({
@@ -108,27 +98,29 @@ export default function DetalleAsambleaPage({
 
   const mostrarConfirmacion = (nuevoEstado: string) => {
     if (nuevoEstado === 'activa') {
-      setDialogConfig({
+      confirm({
         title: 'Iniciar Asamblea',
         description: '¿Estás seguro de iniciar la asamblea? Los propietarios podrán comenzar a registrarse con el código QR.',
         confirmText: 'Iniciar Asamblea',
         cancelText: 'Cancelar',
         variant: 'success',
         hideCancel: false,
-        action: () => cambiarEstado('activa')
+        onConfirm: () => { cambiarEstado('activa') }
       })
+
     } else if (nuevoEstado === 'finalizada') {
-      setDialogConfig({
+
+
+      confirm({
         title: 'Finalizar Asamblea',
         description: 'Al finalizar la asamblea ya no se podrán registrar más votantes ni realizar votaciones. Esta acción no se puede deshacer.',
         confirmText: 'Finalizar',
         cancelText: 'Cancelar',
         variant: 'destructive',
         hideCancel: false,
-        action: () => cambiarEstado('finalizada')
+        onConfirm: () => { cambiarEstado('finalizada') }
       })
     }
-    setDialogOpen(true)
   }
 
   const cambiarEstado = async (nuevoEstado: string) => {
@@ -313,8 +305,8 @@ export default function DetalleAsambleaPage({
               )}
             </div>
           </div>
-            {/* Info General */}
-            <div className="lg:col-span-1 space-y-6">
+          {/* Info General */}
+          <div className="lg:col-span-1 space-y-6">
             <div className="bg-white rounded-lg shadow-sm border p-6">
               <h3 className="text-lg font-semibold mb-4">Información General</h3>
               <dl className="space-y-2">
@@ -341,14 +333,14 @@ export default function DetalleAsambleaPage({
 
         {/* Confirmación de Asistencia */}
         <div className="mt-12">
-        {asamblea.estado === 'activa' && (
-          <div className="mb-6">
-            <BotonConfirmarAsistencia
-              asambleaId={id}
-              onActualizar={fetchAsamblea}
-            />
-          </div>
-        )}
+          {asamblea.estado === 'activa' && (
+            <div className="mb-6">
+              <BotonConfirmarAsistencia
+                asambleaId={id}
+                onActualizar={fetchAsamblea}
+              />
+            </div>
+          )}
         </div>
         {/* Lista de Votantes */}
         <div className="mt-10">
@@ -375,21 +367,20 @@ export default function DetalleAsambleaPage({
               <FormularioProposicion
                 asambleaId={id}
                 onResultado={({ success, message }) => {
-                  setDialogConfig({
+                  confirm({
                     title: success ? 'Proposición creada' : 'Error',
                     description: message,
                     confirmText: 'Aceptar',
                     cancelText: 'Cancelar',
                     variant: success ? 'success' : 'destructive',
                     hideCancel: true,
-                    action: () => {
+                    onConfirm: () => {
                       if (success) {
                         setMostrarFormProposicion(false)
                         fetchAsamblea()
                       }
                     }
                   })
-                  setDialogOpen(true)
                 }}
               />
             )}
@@ -421,20 +412,7 @@ export default function DetalleAsambleaPage({
       </div>
 
       {/* Diálogo de Confirmación */}
-      <ConfirmDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        title={dialogConfig.title}
-        description={dialogConfig.description}
-        confirmText={dialogConfig.confirmText}
-        cancelText={dialogConfig.cancelText}
-        variant={dialogConfig.variant}
-        hideCancel={dialogConfig.hideCancel}
-        onConfirm={() => {
-          dialogConfig.action()
-          setDialogOpen(false)
-        }}
-      />
+      {Dialog}
 
       {/* Toast de Notificación */}
       <Toast
