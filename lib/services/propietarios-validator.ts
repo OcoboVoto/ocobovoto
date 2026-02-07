@@ -19,6 +19,24 @@ export class PropietariosValidator {
         errores.push(`Fila ${filaNum}: El nombre es obligatorio`)
       }
 
+      // Validación: Cédula requerida
+      if (!prop.cedula || prop.cedula.toString().trim() === '') {
+        errores.push(`Fila ${filaNum}: La cédula es obligatoria`)
+      } else {
+        const cedula = prop.cedula.toString().trim()
+        if (cedula.length < 6 || cedula.length > 12) {
+          errores.push(`Fila ${filaNum}: Cédula debe tener entre 6 y 12 dígitos`)
+        }
+
+        // Detectar duplicados
+        if (cedulasRegistradas.has(cedula)) {
+          errores.push(`Fila ${filaNum}: Cédula duplicada`)
+          duplicados.push(this.normalizarPropietario(prop))
+        } else {
+          cedulasRegistradas.add(cedula)
+        }
+      }
+
       // Validación: Torre/Manzana requerida
       if (!prop.torre_manzana || prop.torre_manzana.trim() === '') {
         errores.push(`Fila ${filaNum}: Torre/Manzana es obligatoria`)
@@ -33,22 +51,6 @@ export class PropietariosValidator {
       const coeficiente = parseFloat(prop.coeficiente)
       if (isNaN(coeficiente) || coeficiente <= 0) {
         errores.push(`Fila ${filaNum}: Coeficiente debe ser un número mayor a 0`)
-      }
-
-      // Validación: Cédula (si está presente)
-      if (prop.cedula) {
-        const cedula = prop.cedula.toString().trim()
-        if (cedula.length < 6 || cedula.length > 12) {
-          errores.push(`Fila ${filaNum}: Cédula debe tener entre 6 y 12 dígitos`)
-        }
-        
-        // Detectar duplicados
-        if (cedulasRegistradas.has(cedula)) {
-          errores.push(`Fila ${filaNum}: Cédula duplicada`)
-          duplicados.push(this.normalizarPropietario(prop))
-        } else {
-            cedulasRegistradas.add(cedula)
-        }
       }
 
       // Validación: Email (si está presente)
@@ -81,6 +83,7 @@ export class PropietariosValidator {
   private static normalizarPropietario(prop: any): PropietarioCSV {
     return {
       nombre: prop.nombre?.trim() || '',
+      cedula: prop.cedula?.toString().trim() || '',
       torre_manzana: prop.torre_manzana?.trim() || '',
       apto_casa: prop.apto_casa?.trim() || '',
       celular: prop.celular?.toString().trim() || undefined,

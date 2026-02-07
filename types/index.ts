@@ -4,6 +4,7 @@
 
 export interface PropietarioCSV {
     nombre: string
+    cedula: string
     torre_manzana: string
     apto_casa: string
     celular?: string

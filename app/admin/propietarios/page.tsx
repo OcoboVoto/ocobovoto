@@ -1,16 +1,25 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { EditorPropietarios } from '@/components/admin/EditorPropietarios'
 import { AdminLayout } from '@/components/layouts/AdminLayout'
+import { ListaPropietarios } from '@/components/admin/ListaPropietarios'
+import { Users } from 'lucide-react'
 
 export default function PropietariosPage() {
   const [conjuntoId, setConjuntoId] = useState<string>('')
   const [loading, setLoading] = useState(true)
+  const [propietarios, setPropietarios] = useState([])
 
   useEffect(() => {
     fetchConjuntoId()
   }, [])
+
+  useEffect(() => {
+    if (conjuntoId) {
+      fetchPropietarios(conjuntoId)
+    }
+  }, [conjuntoId])
 
   const fetchConjuntoId = async () => {
     try {
@@ -25,6 +34,23 @@ export default function PropietariosPage() {
       setLoading(false)
     }
   }
+
+  const fetchPropietarios = async (id: string) => {
+    try {
+      const response = await fetch(`/api/propietarios/cargueMasivo?conjuntoId=${id}`)
+      const data = await response.json()
+      if (data.success) {
+        setPropietarios(data.data)
+      }
+    } catch (error) {
+      console.error('Error al cargar propietarios:', error)
+    }
+  }
+
+  const fetchPropietariosByConjunto = useCallback(() => {
+    if (!conjuntoId) return
+    fetchPropietarios(conjuntoId)
+  }, [conjuntoId])
 
   if (loading) {
     return (
@@ -48,12 +74,28 @@ export default function PropietariosPage() {
           </p>
         </div>
 
-        <EditorPropietarios
-          conjuntoId={conjuntoId}
-          onGuardadoExitoso={(count) => {
-            console.log(`✅ ${count} propietarios guardados`)
-          }}
-        />
+        {/* Editor para cargar nuevos */}
+        <div className="mb-8">
+          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            Cargar Nuevos Propietarios
+          </h2>
+          <EditorPropietarios
+            conjuntoId={conjuntoId}
+            onGuardadoExitoso={fetchPropietariosByConjunto}
+          />
+        </div>
+
+        {/* Lista de propietarios existentes */}
+        <div>
+          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            Propietarios Registrados ({propietarios.length})
+          </h2>
+          <ListaPropietarios
+            propietarios={propietarios}
+            onActualizar={fetchPropietariosByConjunto} />
+        </div>
       </div>
     </AdminLayout>
   )

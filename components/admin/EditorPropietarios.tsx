@@ -1,11 +1,9 @@
-// components/admin/EditorPropietarios.tsx
-
 'use client'
 
 import { useState } from 'react'
 import { Upload, Save, Plus, Trash2, AlertCircle, CheckCircle2, CheckCircle } from 'lucide-react'
 import Papa from 'papaparse'
-import { PropietarioCSV, PropietarioValidado, ResultadoValidacion } from '@/types'
+import { PropietarioCSV, PropietarioValidado } from '@/types'
 import { PropietariosValidator } from '@/lib/services/propietarios-validator'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,6 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { useConfirmDialog } from '../hooks/useConfirmDialog'
 
 interface EditorPropietariosProps {
   conjuntoId: string
@@ -29,6 +28,8 @@ export function EditorPropietarios({ conjuntoId, onGuardadoExitoso }: EditorProp
   const [cargando, setCargando] = useState(false)
   const [guardando, setGuardando] = useState(false)
   const [mensajeExito, setMensajeExito] = useState<string | null>(null)
+  const { confirm, Dialog } = useConfirmDialog()
+
   /**
    * Maneja la carga del archivo CSV
    */
@@ -74,6 +75,7 @@ export function EditorPropietarios({ conjuntoId, onGuardadoExitoso }: EditorProp
       ...propietarios,
       {
         nombre: '',
+        cedula: '',
         torre_manzana: '',
         apto_casa: '',
         celular: '',
@@ -116,7 +118,7 @@ export function EditorPropietarios({ conjuntoId, onGuardadoExitoso }: EditorProp
     setMensajeExito(null)
 
     try {
-      const response = await fetch('/api/propietarios/cargueMasivo', {
+      const response = await fetch('/api/propietarios/agregar', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -130,7 +132,14 @@ export function EditorPropietarios({ conjuntoId, onGuardadoExitoso }: EditorProp
       const data = await response.json()
 
       if (data.success) {
-        alert(` ${data.data.count} propietarios guardados exitosamente`)
+        confirm({
+          title: 'Propietarios Guardados.',
+          description: ` ${data.data.count} propietarios guardados exitosamente`,
+          confirmText: 'Aceptar',
+          variant: 'success',
+          hideCancel: true,
+          onConfirm: () => { },
+        })
         setPropietarios([])
         setMensajeExito(`✓ ${data.data.count} propietarios guardados exitosamente`)
         setTimeout(() => setMensajeExito(null), 5000)
@@ -220,7 +229,7 @@ export function EditorPropietarios({ conjuntoId, onGuardadoExitoso }: EditorProp
           </div>
         </div>
       )}
-      
+
       {/* MENSAJE INICIAL CON ENLACE CORREGIDO */}
       {propietarios.length === 0 && errores.length === 0 && !mensajeExito && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-8 text-center">
@@ -229,7 +238,7 @@ export function EditorPropietarios({ conjuntoId, onGuardadoExitoso }: EditorProp
             Sube un archivo CSV o agrega propietarios manualmente
           </h3>
           <p className="text-sm text-blue-700 mb-4">
-            El CSV debe tener las columnas: Nombre, Torre o Manzana, Apto o Casa, Celular, Email, Coeficiente
+            El CSV debe tener las columnas: Nombre, Cédula, Torre o Manzana, Apto o Casa, Celular, Email, Coeficiente
           </p>
           <a
             href="/plantilla-propietarios.csv"
@@ -248,6 +257,7 @@ export function EditorPropietarios({ conjuntoId, onGuardadoExitoso }: EditorProp
             <TableHeader>
               <TableRow>
                 <TableHead className="w-[200px]">Nombre</TableHead>
+                <TableHead className="w-[120px]">Cédula</TableHead>
                 <TableHead className="w-[120px]">Torre/Manzana</TableHead>
                 <TableHead className="w-[100px]">Apto/Casa</TableHead>
                 <TableHead className="w-[130px]">Celular</TableHead>
@@ -264,6 +274,14 @@ export function EditorPropietarios({ conjuntoId, onGuardadoExitoso }: EditorProp
                       value={prop.nombre}
                       onChange={(e) => editarCelda(index, 'nombre', e.target.value)}
                       placeholder="Nombre completo"
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      value={prop.cedula}
+                      onChange={(e) => editarCelda(index, 'cedula', e.target.value)}
+                      placeholder="1234567890"
+                      maxLength={12}
                     />
                   </TableCell>
                   <TableCell>
@@ -319,6 +337,7 @@ export function EditorPropietarios({ conjuntoId, onGuardadoExitoso }: EditorProp
           </Table>
         </div>
       )}
+      {Dialog}
     </div>
   )
 }

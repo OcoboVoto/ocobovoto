@@ -122,7 +122,7 @@ export default function AsambleasConjuntoPage({
           confirmText: 'Aceptar',
           variant: 'success',
           hideCancel: true,
-          onConfirm: () => {}, // solo cerrar
+          onConfirm: () => {},
         })
         setMostrarModalEmail(false)
         setEmailDestino('')
