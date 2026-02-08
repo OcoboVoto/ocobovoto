@@ -19,10 +19,11 @@ import { useConfirmDialog } from '../hooks/useConfirmDialog'
 
 interface EditorPropietariosProps {
   conjuntoId: string
+  asambleaId?: string
   onGuardadoExitoso?: (count: number) => void
 }
 
-export function EditorPropietarios({ conjuntoId, onGuardadoExitoso }: EditorPropietariosProps) {
+export function EditorPropietarios({ conjuntoId, asambleaId, onGuardadoExitoso }: EditorPropietariosProps) {
   const [propietarios, setPropietarios] = useState<PropietarioCSV[]>([])
   const [errores, setErrores] = useState<string[]>([])
   const [cargando, setCargando] = useState(false)
@@ -125,6 +126,7 @@ export function EditorPropietarios({ conjuntoId, onGuardadoExitoso }: EditorProp
         },
         body: JSON.stringify({
           conjuntoId,
+          asambleaId,
           propietarios,
         }),
       })

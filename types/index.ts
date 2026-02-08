@@ -10,6 +10,8 @@ export interface PropietarioCSV {
     celular?: string
     email?: string
     coeficiente: number
+    cedula_apoderado?: string
+    nombre_apoderado?: string 
   }
   
   export interface PropietarioValidado extends PropietarioCSV {

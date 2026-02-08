@@ -5,11 +5,11 @@ import { useRouter } from 'next/navigation'
 import { SuperAdminLayout } from '@/components/layouts/SuperAdminLayout'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { 
-  ArrowLeft, 
-  Building2, 
-  Users, 
-  Calendar, 
+import {
+  ArrowLeft,
+  Building2,
+  Users,
+  Calendar,
   Edit,
   Save,
   X,
@@ -18,6 +18,7 @@ import {
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import type { ConjuntoConAdmin } from '@/types'
+import { useConfirmDialog } from '@/components/hooks/useConfirmDialog'
 
 export default function DetalleConjuntoPage({
   params,
@@ -30,6 +31,7 @@ export default function DetalleConjuntoPage({
   const [loading, setLoading] = useState(true)
   const [editando, setEditando] = useState(false)
   const [guardando, setGuardando] = useState(false)
+  const { confirm, Dialog } = useConfirmDialog()
 
   // Form states
   const [nombre, setNombre] = useState('')
@@ -44,7 +46,7 @@ export default function DetalleConjuntoPage({
     try {
       const response = await fetch('/api/super/conjuntos')
       const data = await response.json()
-      
+
       if (data.success) {
         const conj = data.data.find((c: ConjuntoConAdmin) => c.id === id)
         if (conj) {
@@ -78,14 +80,35 @@ export default function DetalleConjuntoPage({
       const data = await response.json()
 
       if (data.success) {
-        alert('✅ Conjunto actualizado exitosamente')
+        confirm({
+          title: 'Conjunto actualizado.',
+          description: `El conjunto ${conjunto?.nombre} fue actualizado exitosamente`,
+          confirmText: 'Aceptar',
+          variant: 'success',
+          hideCancel: true,
+          onConfirm: () => { },
+        })
         setEditando(false)
         fetchConjunto()
       } else {
-        alert('❌ ' + data.error)
+        confirm({
+          title: 'Error al actualizar el conjunto',
+          description: data.error || 'Ocurrió un error al actualizar el conjunto.',
+          confirmText: 'Aceptar',
+          variant: 'destructive',
+          hideCancel: true,
+          onConfirm: () => { },
+        })
       }
     } catch (error) {
-      alert('❌ Error al actualizar conjunto')
+      confirm({
+        title: 'Error de conexión',
+        description: 'No fue posible enviar el correo. Intenta nuevamente.',
+        confirmText: 'Aceptar',
+        variant: 'destructive',
+        hideCancel: true,
+        onConfirm: () => { },
+      })
     } finally {
       setGuardando(false)
     }
@@ -106,13 +129,34 @@ export default function DetalleConjuntoPage({
       const data = await response.json()
 
       if (data.success) {
-        alert(`✅ Administrador ${nuevoEstado ? 'activado' : 'desactivado'}`)
+        confirm({
+          title: `Administrador ${nuevoEstado ? 'activado' : 'desactivado'}`,
+          description: `El Administrador fue ${nuevoEstado ? 'activado' : 'desactivado'}.`,
+          confirmText: 'Aceptar',
+          variant: 'success',
+          hideCancel: true,
+          onConfirm: () => {},
+        })
         fetchConjunto()
       } else {
-        alert('❌ ' + data.error)
+        confirm({
+          title: `Error al ${nuevoEstado ? 'activado' : 'desactivado'} administrador`,
+          description: data.error || 'Ocurrió un error al actualizar administrador.',
+          confirmText: 'Aceptar',
+          variant: 'destructive',
+          hideCancel: true,
+          onConfirm: () => {},
+        })
       }
     } catch (error) {
-      alert('❌ Error al cambiar estado')
+      confirm({
+        title: 'Error de conexión',
+        description: 'No fue posible enviar el correo. Intenta nuevamente.',
+        confirmText: 'Aceptar',
+        variant: 'destructive',
+        hideCancel: true,
+        onConfirm: () => {},
+      })
     }
   }
 
@@ -294,11 +338,10 @@ export default function DetalleConjuntoPage({
                       <h3 className="text-lg font-semibold text-slate-900">
                         {conjunto.admin.nombre}
                       </h3>
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                        conjunto.admin.activo
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${conjunto.admin.activo
                           ? 'bg-green-100 text-green-800'
                           : 'bg-red-100 text-red-800'
-                      }`}>
+                        }`}>
                         {conjunto.admin.activo ? 'Activo' : 'Inactivo'}
                       </span>
                     </div>
@@ -366,6 +409,7 @@ export default function DetalleConjuntoPage({
           </Button>
         </div>
       </div>
+      {Dialog}
     </SuperAdminLayout>
   )
 }

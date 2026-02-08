@@ -1,181 +1,135 @@
-// app/api/registro/route.ts
+//app/api/registro
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-
-interface RegistroRequest {
-  asambleaId: string
-  cedula: string
-  nombreCompleto: string
-  modalidadAsistencia: string
-  poderes?: Array<{
-    propietarioId: string
-    nombre: string
-  }>
-}
-
-interface ApiResponse {
-  success: boolean
-  data?: any
-  error?: string
-}
+import { ApiResponse } from '@/types'
 
 export async function POST(request: NextRequest) {
   try {
-    const body: RegistroRequest = await request.json()
-    const { asambleaId, cedula, nombreCompleto, modalidadAsistencia, poderes = [] } = body
+    const body = await request.json()
+    const { asambleaId, cedula, nombre, modalidadAsistencia } = body
 
-    // Validaciones
-    if (!asambleaId || !cedula || !nombreCompleto) {
-      return NextResponse.json<ApiResponse>({
-        success: false,
-        error: 'Faltan campos requeridos'
-      }, { status: 400 })
-    }
+    console.log('🔵 Iniciando registro:', { asambleaId, cedula })
 
     // Verificar que la asamblea existe y está activa
     const asamblea = await prisma.asamblea.findUnique({
       where: { id: asambleaId },
-      include: {
-        conjunto: true
-      }
+      include: { conjunto: true },
     })
 
     if (!asamblea) {
       return NextResponse.json<ApiResponse>({
         success: false,
-        error: 'Asamblea no encontrada'
+        error: 'Asamblea no encontrada',
       }, { status: 404 })
     }
 
     if (asamblea.estado !== 'activa') {
       return NextResponse.json<ApiResponse>({
         success: false,
-        error: 'La asamblea no está activa'
+        error: 'La asamblea no está activa',
       }, { status: 400 })
     }
+
+    // Buscar propietario por cédula
+    const propietario = await prisma.propietario.findUnique({
+      where: { cedula },
+    })
+
+    if (!propietario) {
+      return NextResponse.json<ApiResponse>({
+        success: false,
+        error: 'Propietario no encontrado con esa cédula',
+      }, { status: 404 })
+    }
+
+    console.log('✅ Propietario encontrado:', propietario.nombreCompleto)
 
     // Verificar si ya está registrado
     const registroExistente = await prisma.votante.findUnique({
       where: {
         asambleaId_cedula: {
           asambleaId,
-          cedula
-        }
-      }
+          cedula,
+        },
+      },
     })
 
     if (registroExistente) {
       return NextResponse.json<ApiResponse>({
         success: false,
-        error: 'Esta cédula ya está registrada en esta asamblea'
+        error: 'Ya estás registrado en esta asamblea',
       }, { status: 400 })
     }
 
-    // Obtener propietarios para calcular coeficiente
-    const propietariosPrincipales = await prisma.propietario.findMany({
+    // Buscar poderes otorgados A ESTA PERSONA (donde ella es apoderada)
+    const poderesRecibidos = await prisma.poder.findMany({
       where: {
-        conjuntoId: asamblea.conjuntoId,
-        cedula
-      }
+        asambleaId,
+        cedulaApoderado: cedula,
+        activo: true,
+      },
+      include: {
+        propietarioOtorgante: true,
+      },
     })
 
-    if (propietariosPrincipales.length === 0) {
-      return NextResponse.json<ApiResponse>({
-        success: false,
-        error: 'No se encontró ningún propietario con esta cédula'
-      }, { status: 404 })
-    }
+    console.log('📋 Poderes recibidos:', poderesRecibidos.length)
 
-    // Calcular coeficiente total (propios + poderes)
-    let coeficienteTotal = propietariosPrincipales.reduce(
-      (sum, p) => sum + Number(p.coeficiente),
-      0
-    )
-    
-    let propietariosRepresentados = propietariosPrincipales.map(p => ({
-      id: p.id,
-      nombre: p.nombreCompleto,
-      coeficiente: Number(p.coeficiente),
-      unidad: `${p.torreManzana} ${p.aptoCasa}`
-    }))
+    // Calcular coeficiente total (propio + poderes recibidos)
+    let coeficienteTotal = Number(propietario.coeficiente)
+    const detalleRepresentados = [
+      {
+        id: propietario.id,
+        cedula: propietario.cedula,
+        nombre: propietario.nombreCompleto,
+        coeficiente: Number(propietario.coeficiente),
+        esPropietario: true,
+      },
+    ]
 
-    // Si hay poderes, sumar sus coeficientes
-    if (poderes.length > 0) {
-      const propietariosPoderes = await prisma.propietario.findMany({
-        where: {
-          conjuntoId: asamblea.conjuntoId,
-          id: { in: poderes.map(p => p.propietarioId) }
-        }
+    // Sumar coeficientes de los poderes recibidos
+    poderesRecibidos.forEach((poder) => {
+      const coefPoder = Number(poder.propietarioOtorgante.coeficiente)
+      coeficienteTotal += coefPoder
+      
+      detalleRepresentados.push({
+        id: poder.propietarioOtorgante.id,
+        cedula: poder.propietarioOtorgante.cedula,
+        nombre: poder.propietarioOtorgante.nombreCompleto,
+        coeficiente: coefPoder,
+        esPropietario: false,
       })
 
-      for (const prop of propietariosPoderes) {
-        coeficienteTotal += Number(prop.coeficiente)
-        propietariosRepresentados.push({
-          id: prop.id,
-          nombre: prop.nombreCompleto,
-          coeficiente: Number(prop.coeficiente),
-          unidad: `${prop.torreManzana} ${prop.aptoCasa}`
-        })
-      }
-    }
+      console.log(`  ✓ Poder de ${poder.propietarioOtorgante.nombreCompleto}: +${coefPoder}%`)
+    })
 
-    //Transacción final
-    const resultado = await prisma.$transaction(async (tx) => {
-        // Crear votante
-        const votante = await tx.votante.create({
-          data: {
-            asambleaId,
-            cedula,
-            nombreCompleto,
-            coeficienteTotal,
-            propietariosRepresenta: propietariosRepresentados.length,
-            detalleRepresentados: propietariosRepresentados
-          }
-        })
+    console.log('💰 Coeficiente total calculado:', coeficienteTotal)
 
-        // Crear registros de asamblea para cada propietario
-        const registros = await Promise.all(
-          propietariosPrincipales.map(prop =>
-            tx.registroAsamblea.create({
-              data: {
-                asambleaId,
-                propietarioId: prop.id,
-                cedulaRegistrante: cedula,
-                modalidadAsistencia: modalidadAsistencia,
-                poderesRepresentados: poderes.map(p => p.propietarioId)
-              }
-            })
-          )
-        )
-
-        // Crear poderes si existen
-        if (poderes.length > 0) {
-          await Promise.all(
-            poderes.map(poder =>
-              tx.poder.create({
-                data: {
-                  propietarioOtorganteId: poder.propietarioId,
-                  asambleaId,
-                  cedulaApoderado: cedula,
-                  nombreApoderado: nombreCompleto,
-                  activo: true
-                }
-              })
-            )
-          )
-        }
-
-        return { votante, registros }
+    // Crear votante y registro
+    const votante = await prisma.votante.create({
+      data: {
+        asambleaId,
+        cedula,
+        nombreCompleto: nombre || propietario.nombreCompleto,
+        coeficienteTotal,
+        propietariosRepresenta: detalleRepresentados.length,
+        detalleRepresentados,
       },
-      {
-        maxWait: 10000, // 10 segundos de espera máxima
-        timeout: 20000, // 20 segundos de timeout
-      }
-    )
+    })
 
-    // Recalcular quórum
+    await prisma.registroAsamblea.create({
+      data: {
+        asambleaId,
+        propietarioId: propietario.id,
+        cedulaRegistrante: cedula,
+        modalidadAsistencia,
+        poderesRepresentados: poderesRecibidos.map((p) => p.id),
+      },
+    })
+
+    // Recalcular quórum inicial
     const todosVotantes = await prisma.votante.findMany({
-      where: { asambleaId }
+      where: { asambleaId },
     })
 
     const coeficientePresente = todosVotantes.reduce(
@@ -183,36 +137,30 @@ export async function POST(request: NextRequest) {
       0
     )
 
-    const quorumInicial = (coeficientePresente / Number(asamblea.conjunto.coeficienteTotal)) * 100
+    const coeficienteTotalConjunto = Number(asamblea.conjunto.coeficienteTotal)
+    const quorumInicial = (coeficientePresente / coeficienteTotalConjunto) * 100
 
-    // Actualizar quórum en asamblea
     await prisma.asamblea.update({
       where: { id: asambleaId },
-      data: { quorumInicial }
+      data: { quorumInicial },
     })
+
+    console.log('✅ Registro completado - Quórum:', quorumInicial.toFixed(2), '%')
 
     return NextResponse.json<ApiResponse>({
       success: true,
       data: {
-        votante: resultado.votante,
-        quorumActual: quorumInicial.toFixed(2)
-      }
-    })
+        votante,
+        quorumActual: quorumInicial,
+      },
+      message: 'Registro exitoso',
+    }, { status: 201 })
 
   } catch (error) {
-    console.error('Error en POST /api/registro:', error)
-    
-    // Error específico de timeout
-    if (error instanceof Error && error.message.includes('Unable to start a transaction')) {
-      return NextResponse.json<ApiResponse>({
-        success: false,
-        error: 'El servidor está ocupado. Por favor intenta de nuevo en unos segundos.'
-      }, { status: 503 })
-    }
-
+    console.error('❌ Error en POST /api/registro:', error)
     return NextResponse.json<ApiResponse>({
       success: false,
-      error: 'Error al registrar votante'
+      error: 'Error al registrar',
     }, { status: 500 })
   }
 }

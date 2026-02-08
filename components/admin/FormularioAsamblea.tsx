@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Calendar, Save } from 'lucide-react'
+import { Save } from 'lucide-react'
+import { useConfirmDialog } from '../hooks/useConfirmDialog'
 
 interface FormularioAsambleaProps {
   conjuntoId: string
@@ -14,8 +15,9 @@ export function FormularioAsamblea({ conjuntoId, onCreada }: FormularioAsambleaP
   const [tipo, setTipo] = useState<'ordinaria' | 'extraordinaria'>('ordinaria')
   const [fechaHora, setFechaHora] = useState('')
   const [modalidad, setModalidad] = useState<'presencial' | 'virtual' | 'hibrida'>('presencial')
-  const [quorumRequerido, setQuorumRequerido] = useState('50')
+  const [quorumRequerido, setQuorumRequerido] = useState('100')
   const [guardando, setGuardando] = useState(false)
+  const { confirm, Dialog } = useConfirmDialog()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -37,16 +39,37 @@ export function FormularioAsamblea({ conjuntoId, onCreada }: FormularioAsambleaP
       const data = await response.json()
 
       if (data.success) {
-        alert('Asamblea creada exitosamente')
-        onCreada?.(data.data.id)
+        confirm({
+          title: 'Asamblea creada',
+          description: `La Asamblea fue creada exitosamente.`,
+          confirmText: 'Aceptar',
+          variant: 'success',
+          hideCancel: true,
+          onConfirm: () => {
+            onCreada?.(data.data.id)
+          },
+        })
         // Reset form
         setFechaHora('')
-        setQuorumRequerido('50')
       } else {
-        alert(data.error)
+        confirm({
+          title: 'Error al crear asamblea',
+          description: data.error || 'Ocurrió un error al crear la asamblea.',
+          confirmText: 'Aceptar',
+          variant: 'destructive',
+          hideCancel: true,
+          onConfirm: () => { },
+        })
       }
     } catch (error) {
-      alert('Error de conexión')
+      confirm({
+        title: 'Error de conexión',
+        description: 'No fue posible enviar el correo. Intenta nuevamente.',
+        confirmText: 'Aceptar',
+        variant: 'destructive',
+        hideCancel: true,
+        onConfirm: () => { },
+      })
     } finally {
       setGuardando(false)
     }
@@ -106,6 +129,7 @@ export function FormularioAsamblea({ conjuntoId, onCreada }: FormularioAsambleaP
             max="100"
             step="0.01"
             required
+            disabled={true}
           />
         </div>
       </div>
@@ -114,6 +138,7 @@ export function FormularioAsamblea({ conjuntoId, onCreada }: FormularioAsambleaP
         <Save className="mr-2 h-4 w-4" />
         {guardando ? 'Guardando...' : 'Crear Asamblea'}
       </Button>
+      {Dialog}
     </form>
   )
 }

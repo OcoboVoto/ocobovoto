@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { PropietariosValidator } from '@/lib/services/propietarios-validator'
-import { ApiResponse, PropietarioCSV } from '@/types'
+import { ApiResponse } from '@/types'
 
 export async function POST(request: NextRequest) {
   try {
@@ -72,8 +72,43 @@ export async function POST(request: NextRequest) {
         })
       )
     )
+    console.log('propietarios creados:_____', propietariosCreados)
+  
+    
+    //Crear poderes si viene asambleaId y hay datos de apoderado
+    /*if (asambleaId) {
+      const poderesCreados = []
 
-    // Recalcular coeficiente total
+      for (const prop of resultado.validos) {
+        if (prop.cedula_apoderado && prop.nombre_apoderado) {
+          // Buscar el propietario otorgante
+          const otorgante = await prisma.propietario.findUnique({
+            where: { cedula: prop.cedula },
+          })
+
+          if (otorgante) {
+            try {
+              // Crear poder
+              const poder = await prisma.poder.create({
+                data: {
+                  propietarioOtorganteId: otorgante.id,
+                  asambleaId,
+                  cedulaApoderado: prop.cedula_apoderado,
+                  nombreApoderado: prop.nombre_apoderado,
+                  activo: true,
+                },
+              })
+              poderesCreados.push(poder)
+            } catch (error) {
+              console.error(`Error creando poder para ${prop.nombre}:`, error)
+            }
+          }
+        }
+      }
+      console.log(`✅ ${poderesCreados.length} poderes creados`)
+    }
+*/
+   /* // Recalcular coeficiente total
     const todosPropietarios = await prisma.propietario.findMany({
       where: {
         conjuntoId,
@@ -89,7 +124,7 @@ export async function POST(request: NextRequest) {
     await prisma.conjunto.update({
       where: { id: conjuntoId },
       data: { coeficienteTotal },
-    })
+    })*/
 
     return NextResponse.json<ApiResponse>({
       success: true,

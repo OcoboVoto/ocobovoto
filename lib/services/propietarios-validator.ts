@@ -89,6 +89,8 @@ export class PropietariosValidator {
       celular: prop.celular?.toString().trim() || undefined,
       email: prop.email?.trim() || undefined,
       coeficiente: parseFloat(prop.coeficiente) || 0,
+      cedula_apoderado: prop.cedula_apoderado?.toString().trim() || undefined,
+      nombre_apoderado: prop.nombre_apoderado?.trim() || undefined,
     }
   }
 

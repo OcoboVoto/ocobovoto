@@ -32,7 +32,7 @@ export default function VotacionPage({
 }: {
     params: Promise<{ asambleaId: string }>
 }) {
-    
+
     const [inicializando, setInicializando] = useState(true)
     const { asambleaId } = use(params)
     const [cedula, setCedula] = useState('')
@@ -58,10 +58,7 @@ export default function VotacionPage({
 
         try {
             const response = await fetch(`/api/votacion/${asambleaId}?cedula=${cedulaValue}`)
-            if (!response.ok) throw new Error('HTTP error')
-
             const data = await response.json()
-            if (!data.success) throw new Error(data.error)
 
             if (data.success) {
                 setCedula(cedulaValue)
@@ -206,7 +203,7 @@ export default function VotacionPage({
             console.log('📤 Enviando confirmación...', {
                 asambleaId,
                 votanteId: votante.id,
-              })
+            })
 
             const response = await fetch('/api/confirmacion', {
                 method: 'POST',

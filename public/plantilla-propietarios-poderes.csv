@@ -1,0 +1,6 @@
+nombre,cedula,torre_manzana,apto_casa,celular,email,coeficiente,cedula_apoderado,nombre_apoderado
+Pedro Otorgante,1111111111,Torre A,101,3001111111,pedro@email.com,5.0,2222222222,María Apoderada
+María Apoderada,2222222222,Torre A,102,3002222222,maria@email.com,3.0,,
+Carlos Ausente,3333333333,Torre B,201,3003333333,carlos@email.com,4.0,4444444444,Ana Presente
+Ana Presente,4444444444,Torre B,202,3004444444,ana@email.com,2.5,,
+Luis Normal,5555555555,Torre C,301,3005555555,luis@email.com,3.5,,

@@ -1,16 +1,32 @@
 'use client'
 
-import { use, useEffect, useState } from 'react'
+import { use, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { CheckCircle2, AlertCircle, Users, Building } from 'lucide-react'
+import { CheckCircle2, AlertCircle, Users, Building, MapPin, Percent } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 import { useRouter } from 'next/navigation'
 
-interface Propietario {
+interface PropietarioConPoderes {
+  id: string
   nombreCompleto: string
+  cedula: string
   torreManzana: string
   aptoCasa: string
   coeficiente: number
+  poderesOtorgados: Array<{
+    id: string
+    otorgante: {
+      id: string
+      nombreCompleto: string
+      cedula: string
+      torreManzana: string
+      aptoCasa: string
+      coeficiente: number
+    }
+  }>
+  coeficienteTotal: number
+  tienePoderes: boolean
 }
 
 export default function RegistroPage({
@@ -20,7 +36,7 @@ export default function RegistroPage({
 }) {
   const { asambleaId } = use(params)
   const [cedula, setCedula] = useState('')
-  const [propietario, setPropietario] = useState<Propietario | null>(null)
+  const [propietario, setPropietario] = useState<PropietarioConPoderes | null>(null)
   const [modalidad, setModalidad] = useState<'presencial' | 'virtual'>('presencial')
   const [loading, setLoading] = useState(false)
   const [registrado, setRegistrado] = useState(false)
@@ -37,7 +53,7 @@ export default function RegistroPage({
     setError('')
 
     try {
-      const response = await fetch(`/api/propietarios/buscar?cedula=${cedula}`)
+      const response = await fetch(`/api/propietarios/buscar?cedula=${cedula}&asambleaId=${asambleaId}`)
       const data = await response.json()
 
       if (data.success) {
@@ -58,7 +74,6 @@ export default function RegistroPage({
 
     setLoading(true)
     setError('')
-    
 
     try {
       const response = await fetch('/api/registro', {
@@ -86,8 +101,6 @@ export default function RegistroPage({
     }
   }
 
-
-
   // Pantalla de éxito
   if (registrado) {
     return (
@@ -106,19 +119,14 @@ export default function RegistroPage({
             <p className="text-sm text-green-800">
               Ya puedes participar en las votaciones de la asamblea
             </p>
+            {propietario?.tienePoderes && (
+              <p className="text-xs text-green-700 mt-2">
+                Votarás con un coeficiente total de {Number(propietario.coeficienteTotal).toFixed(1)}%
+                ({propietario.poderesOtorgados.length} {propietario.poderesOtorgados.length === 1 ? 'poder' : 'poderes'})
+              </p>
+            )}
           </div>
-{/*           <Button
-            onClick={() => {
-              setRegistrado(false)
-              setCedula('')
-              setPropietario(null)
-            }}
-            variant="outline"
-            className="w-full"
-          >
-            Registrar Otro Votante
-          </Button> */}
-          
+
           {/* BOTONES ACTUALIZADOS */}
           <div className="space-y-3">
             <Button
@@ -206,28 +214,116 @@ export default function RegistroPage({
           {/* Datos del Propietario */}
           {propietario && (
             <div className="space-y-6">
-              <div className="bg-indigo-50 rounded-lg p-4">
-                <h3 className="font-semibold text-indigo-900 mb-2">
+              <div className="bg-indigo-50 rounded-lg p-4 border-2 border-indigo-200">
+                <h3 className="font-semibold text-indigo-900 mb-3 flex items-center gap-2">
+                  <Users className="h-5 w-5" />
                   Datos Encontrados
                 </h3>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-indigo-700">Nombre:</span>
-                    <span className="font-medium text-indigo-900">
-                      {propietario.nombreCompleto}
-                    </span>
+                <div className="space-y-3 text-sm">
+                  {/* Datos Personales */}
+                  <div className="bg-white rounded-lg p-3">
+                    <div className="flex items-start gap-2 mb-2">
+                      <Users className="h-4 w-4 text-gray-500 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900">
+                          {propietario.nombreCompleto}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          CC: {propietario.cedula}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-2">
+                      <MapPin className="h-4 w-4 text-gray-500 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-gray-700">
+                          {propietario.torreManzana} - {propietario.aptoCasa}
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-indigo-700">Ubicación:</span>
-                    <span className="font-medium text-indigo-900">
-                      {propietario.torreManzana} - {propietario.aptoCasa}
-                    </span>
+
+                  {/* Coeficientes */}
+                  <div className="bg-white rounded-lg p-3 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-2">
+                        <Percent className="h-4 w-4 text-gray-500" />
+                        <span className="text-gray-700">Coeficiente propio:</span>
+                      </div>
+                      <span className="font-medium text-gray-900">
+                        {Number(propietario.coeficiente).toFixed(1)}%
+                      </span>
+                    </div>
+
+                    {propietario.tienePoderes && (
+                      <>
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-700 pl-6">Coef. por poderes:</span>
+                          <span className="font-medium text-gray-900">
+                            {(Number(propietario.coeficienteTotal) - Number(propietario.coeficiente)).toFixed(1)}%
+                          </span>
+                        </div>
+                        <div className="pt-2 border-t flex justify-between items-center">
+                          <span className="font-semibold text-gray-900">Coeficiente total:</span>
+                          <Badge variant="default" className="text-base">
+                            {Number(propietario.coeficienteTotal).toFixed(1)}%
+                          </Badge>
+                        </div>
+                      </>
+                    )}
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-indigo-700">Coeficiente:</span>
-                    <span className="font-medium text-indigo-900">
-                      {propietario.coeficiente}%
-                    </span>
+
+                  {/* Detalle de Poderes */}
+                  {propietario.tienePoderes && (
+                    <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                      <p className="font-medium text-blue-900 mb-2 flex items-center gap-2">
+                        <Users className="h-4 w-4" />
+                        Representa a {propietario.poderesOtorgados.length}{' '}
+                        {propietario.poderesOtorgados.length === 1 ? 'propietario' : 'propietarios'}:
+                      </p>
+                      <div className="space-y-2">
+                        {propietario.poderesOtorgados.map((poder) => (
+                          <div
+                            key={poder.id}
+                            className="bg-white rounded p-2 text-xs"
+                          >
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <p className="font-medium text-gray-900">
+                                  {poder.otorgante.nombreCompleto}
+                                </p>
+                                <p className="text-gray-500">
+                                  CC: {poder.otorgante.cedula}
+                                </p>
+                                <p className="text-gray-500">
+                                  {poder.otorgante.torreManzana} - {poder.otorgante.aptoCasa}
+                                </p>
+                              </div>
+                              <Badge variant="outline" className="text-xs">
+                                {Number(poder.otorgante.coeficiente).toFixed(1)}%
+                              </Badge>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Resumen de Voto */}
+                  <div className="bg-indigo-100 rounded-lg p-3 text-center border border-indigo-300">
+                    <p className="text-xs text-indigo-700 mb-1">
+                      Votarás con un total de:
+                    </p>
+                    <p className="text-2xl font-bold text-indigo-900">
+                      {Number(propietario.coeficienteTotal).toFixed(1)}%
+                    </p>
+                    <p className="text-xs text-indigo-600">
+                      {propietario.tienePoderes
+                        ? `(1 propio + ${propietario.poderesOtorgados.length} ${propietario.poderesOtorgados.length === 1 ? 'poder' : 'poderes'
+                        })`
+                        : '(solo coeficiente propio)'}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -240,35 +336,37 @@ export default function RegistroPage({
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     onClick={() => setModalidad('presencial')}
-                    className={`p-4 rounded-lg border-2 transition-colors ${
-                      modalidad === 'presencial'
+                    className={`p-4 rounded-lg border-2 transition-colors ${modalidad === 'presencial'
                         ? 'border-indigo-600 bg-indigo-50'
                         : 'border-gray-200 hover:border-gray-300'
-                    }`}
+                      }`}
                   >
-                    <Building className={`h-6 w-6 mx-auto mb-2 ${
-                      modalidad === 'presencial' ? 'text-indigo-600' : 'text-gray-400'
-                    }`} />
-                    <p className={`text-sm font-medium ${
-                      modalidad === 'presencial' ? 'text-indigo-900' : 'text-gray-700'
-                    }`}>
+                    <Building
+                      className={`h-6 w-6 mx-auto mb-2 ${modalidad === 'presencial' ? 'text-indigo-600' : 'text-gray-400'
+                        }`}
+                    />
+                    <p
+                      className={`text-sm font-medium ${modalidad === 'presencial' ? 'text-indigo-900' : 'text-gray-700'
+                        }`}
+                    >
                       Presencial
                     </p>
                   </button>
                   <button
                     onClick={() => setModalidad('virtual')}
-                    className={`p-4 rounded-lg border-2 transition-colors ${
-                      modalidad === 'virtual'
+                    className={`p-4 rounded-lg border-2 transition-colors ${modalidad === 'virtual'
                         ? 'border-indigo-600 bg-indigo-50'
                         : 'border-gray-200 hover:border-gray-300'
-                    }`}
+                      }`}
                   >
-                    <Users className={`h-6 w-6 mx-auto mb-2 ${
-                      modalidad === 'virtual' ? 'text-indigo-600' : 'text-gray-400'
-                    }`} />
-                    <p className={`text-sm font-medium ${
-                      modalidad === 'virtual' ? 'text-indigo-900' : 'text-gray-700'
-                    }`}>
+                    <Users
+                      className={`h-6 w-6 mx-auto mb-2 ${modalidad === 'virtual' ? 'text-indigo-600' : 'text-gray-400'
+                        }`}
+                    />
+                    <p
+                      className={`text-sm font-medium ${modalidad === 'virtual' ? 'text-indigo-900' : 'text-gray-700'
+                        }`}
+                    >
                       Virtual
                     </p>
                   </button>

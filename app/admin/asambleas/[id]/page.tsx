@@ -5,7 +5,7 @@ import { AdminLayout } from '@/components/layouts/AdminLayout'
 import { GeneradorQR } from '@/components/admin/GeneradorQR'
 import { Button } from '@/components/ui/button'
 import { Toast } from '@/components/ui/toast'
-import { ArrowLeft, Badge, Play, Plus, Square } from 'lucide-react'
+import { ArrowLeft, Play, Plus, Square } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -14,6 +14,7 @@ import { ControlVotacion } from '@/components/admin/ControlVotacion'
 import { FormularioProposicion } from '@/components/admin/FormularioPregunta'
 import { BotonConfirmarAsistencia } from '@/components/admin/BotonConfirmarAsistencia'
 import { useConfirmDialog } from '@/components/hooks/useConfirmDialog'
+import { GestionPoderes } from '@/components/admin/GestionPoderes'
 
 interface Votante {
   id: string
@@ -34,7 +35,9 @@ interface Asamblea {
   quorumInicial: number
   quorumFinal: number
   qrCodeData: string
+  conjuntoId: string
   conjunto: {
+    id: string
     nombre: string
     coeficienteTotal: number
   },
@@ -61,7 +64,6 @@ export default function DetalleAsambleaPage({
   const { confirm, Dialog } = useConfirmDialog()
 
 
-
   const [toastOpen, setToastOpen] = useState(false)
   const [toastConfig, setToastConfig] = useState({
     title: '',
@@ -76,7 +78,7 @@ export default function DetalleAsambleaPage({
   useEffect(() => {
     const interval = setInterval(() => {
       fetchAsamblea()
-    }, 30000)
+    }, 15000)
 
     return () => clearInterval(interval)
   }, [id])
@@ -349,8 +351,28 @@ export default function DetalleAsambleaPage({
         </div>
 
 
+        {/* Gestión de Poderes */}
+        {(asamblea.estado === 'activa' || asamblea.estado === 'borrador') && (
+          <div className="mt-10">
+            <GestionPoderes asambleaId={id} />
+          </div>
+        )}
+
+        {/* Gestión de Poderes CSV 
+        {(asamblea.estado === 'borrador' || asamblea.estado === 'activa') && (
+          <div className="mt-10">
+            <EditorPoderesCSV
+              asambleaId={id}
+              onExito={() => {
+                // refrescar poderes y quorum
+                fetchAsamblea()
+              }}
+            />
+          </div>
+        )}*/}
+
         {/* SECCIÓN DE PROPOSICIONES */}
-        <div className="mt-12">
+        <div className="mt-10">
           <div className="bg-white rounded-lg shadow-sm border p-6 space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold text-gray-900">Votaciones</h2>
