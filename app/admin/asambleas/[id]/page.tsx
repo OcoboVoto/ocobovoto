@@ -6,7 +6,7 @@ import { GeneradorQR } from '@/components/admin/GeneradorQR'
 import { Button } from '@/components/ui/button'
 import { Toast } from '@/components/ui/toast'
 import { ArrowLeft, Play, Plus, Square } from 'lucide-react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { ListaVotantes } from '@/components/admin/ListaVotantes'
@@ -58,6 +58,7 @@ export default function DetalleAsambleaPage({
 }) {
   const { id } = use(params)
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [asamblea, setAsamblea] = useState<Asamblea | null>(null)
   const [loading, setLoading] = useState(true)
   const [mostrarFormProposicion, setMostrarFormProposicion] = useState(false)
@@ -70,6 +71,9 @@ export default function DetalleAsambleaPage({
     description: '',
     variant: 'success' as 'success' | 'error'
   })
+
+  const fromSuper = searchParams.get('from') === 'super'
+  const conjuntoId = searchParams.get('conjuntoId')
 
   useEffect(() => {
     fetchAsamblea()
@@ -95,6 +99,16 @@ export default function DetalleAsambleaPage({
       console.error('Error al cargar asamblea:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleVolver = () => {
+    if (fromSuper && conjuntoId) {
+      // Si viene del super-admin, volver a la lista de asambleas del conjunto
+      router.push(`/super-admin/conjuntos/${conjuntoId}/asambleas`)
+    } else {
+      // Si viene del admin normal, volver a /admin/asambleas
+      router.push('/admin/asambleas')
     }
   }
 
@@ -187,11 +201,11 @@ export default function DetalleAsambleaPage({
         <div className="mb-6">
           <Button
             variant="ghost"
-            onClick={() => router.push('/admin/asambleas')}
+            onClick={handleVolver}
             className="mb-4"
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Volver a Asambleas
+            {fromSuper ? 'Volver a Asambleas del Conjunto' : 'Volver a Asambleas'}
           </Button>
 
           <div className="flex justify-between items-start">

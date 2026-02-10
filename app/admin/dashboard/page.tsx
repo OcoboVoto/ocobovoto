@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Calendar, Users, FileText, LogOut, Settings } from 'lucide-react'
+import { AdminLayout } from '@/components/layouts/AdminLayout'
 
 interface AdminData {
   id: string
@@ -65,116 +66,87 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">
-                OcoboVoto
-              </h1>
-              <p className="text-sm text-gray-600 mt-1">
-                {admin.conjuntoNombre}
-              </p>
-            </div>
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <p className="text-sm font-medium text-gray-900">
-                  {admin.nombre}
-                </p>
-                <p className="text-xs text-gray-500">{admin.email}</p>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleLogout}
-              >
-                <LogOut className="h-4 w-4 mr-2" />
-                Salir
-              </Button>
-            </div>
+      <AdminLayout>
+
+        {/* Main Content */}
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          {/* Welcome Section */}
+          <div className="mb-8">
+            <h2 className="text-3xl font-bold text-gray-900 mb-2">
+              ¡Bienvenido de nuevo!
+            </h2>
+            <p className="text-gray-600">
+              Gestiona las asambleas y votaciones de tu conjunto residencial
+            </p>
           </div>
-        </div>
-      </header>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Welcome Section */}
-        <div className="mb-8">
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">
-            ¡Bienvenido de nuevo!
-          </h2>
-          <p className="text-gray-600">
-            Gestiona las asambleas y votaciones de tu conjunto residencial
-          </p>
-        </div>
-
-        {/* Quick Actions Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-          {/* Propietarios Card */}
-          <button
-            onClick={() => router.push('/admin/propietarios')}
-            className="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow p-6 text-left border border-gray-200"
-          >
-            <div className="flex items-center gap-4 mb-4">
-              <div className="p-3 bg-blue-100 rounded-lg">
-                <Users className="h-6 w-6 text-blue-600" />
+          {/* Quick Actions Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+            {/* Propietarios Card */}
+            <button
+              onClick={() => router.push('/admin/propietarios')}
+              className="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow p-6 text-left border border-gray-200"
+            >
+              <div className="flex items-center gap-4 mb-4">
+                <div className="p-3 bg-blue-100 rounded-lg">
+                  <Users className="h-6 w-6 text-blue-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Propietarios
+                </h3>
               </div>
-              <h3 className="text-lg font-semibold text-gray-900">
-                Propietarios
-              </h3>
-            </div>
-            <p className="text-sm text-gray-600 mb-4">
-              Gestiona la lista de propietarios del conjunto
-            </p>
-            <span className="text-sm text-blue-600 font-medium">
-              Ir a Propietarios →
-            </span>
-          </button>
+              <p className="text-sm text-gray-600 mb-4">
+                Gestiona la lista de propietarios del conjunto
+              </p>
+              <span className="text-sm text-blue-600 font-medium">
+                Ir a Propietarios →
+              </span>
+            </button>
 
-          {/* Asambleas Card */}
-          <button
-            onClick={() => router.push('/admin/asambleas')}
-            className="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow p-6 text-left border border-gray-200"
-          >
-            <div className="flex items-center gap-4 mb-4">
-              <div className="p-3 bg-green-100 rounded-lg">
-                <Calendar className="h-6 w-6 text-green-600" />
+            {/* Asambleas Card */}
+            <button
+              onClick={() => router.push('/admin/asambleas')}
+              className="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow p-6 text-left border border-gray-200"
+            >
+              <div className="flex items-center gap-4 mb-4">
+                <div className="p-3 bg-green-100 rounded-lg">
+                  <Calendar className="h-6 w-6 text-green-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Asambleas
+                </h3>
               </div>
-              <h3 className="text-lg font-semibold text-gray-900">
-                Asambleas
-              </h3>
-            </div>
-            <p className="text-sm text-gray-600 mb-4">
-              Crea y gestiona asambleas del conjunto
-            </p>
-            <span className="text-sm text-green-600 font-medium">
-              Ir a Asambleas →
-            </span>
-          </button>
+              <p className="text-sm text-gray-600 mb-4">
+                Crea y gestiona asambleas del conjunto
+              </p>
+              <span className="text-sm text-green-600 font-medium">
+                Ir a Asambleas →
+              </span>
+            </button>
 
-          {/* Reportes Card */}
-          <button
-            onClick={() => router.push('/admin/reportes')}
-            className="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow p-6 text-left border border-gray-200"
-          >
-            <div className="flex items-center gap-4 mb-4">
-              <div className="p-3 bg-purple-100 rounded-lg">
-                <FileText className="h-6 w-6 text-purple-600" />
+            {/* Reportes Card */}
+            <button
+              onClick={() => router.push('/admin/reportes')}
+              className="bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow p-6 text-left border border-gray-200"
+            >
+              <div className="flex items-center gap-4 mb-4">
+                <div className="p-3 bg-purple-100 rounded-lg">
+                  <FileText className="h-6 w-6 text-purple-600" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  Reportes
+                </h3>
               </div>
-              <h3 className="text-lg font-semibold text-gray-900">
-                Reportes
-              </h3>
-            </div>
-            <p className="text-sm text-gray-600 mb-4">
-              Consulta reportes y actas de asambleas
-            </p>
-            <span className="text-sm text-purple-600 font-medium">
-              Ir a Reportes →
-            </span>
-          </button>
-        </div>
+              <p className="text-sm text-gray-600 mb-4">
+                Consulta reportes y actas de asambleas
+              </p>
+              <span className="text-sm text-purple-600 font-medium">
+                Ir a Reportes →
+              </span>
+            </button>
+          </div>
 
-        {/* Stats Section */}
+          {/* Stats Section 
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">
             Estadísticas Rápidas
@@ -198,7 +170,10 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
-      </main>
+        */}
+        </main>
+      </AdminLayout>
     </div>
   )
+
 }

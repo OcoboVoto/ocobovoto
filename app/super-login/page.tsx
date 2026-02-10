@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { AlertCircle, Shield } from 'lucide-react'
+import Image from 'next/image'
 
 export default function SuperLoginPage() {
   const router = useRouter()
@@ -48,9 +49,21 @@ export default function SuperLoginPage() {
         <div className="bg-white rounded-2xl shadow-xl p-8">
           {/* Header */}
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-slate-900 rounded-full mb-4">
-              <Shield className="w-8 h-8 text-white" />
+            <div className="flex items-center justify-center mb-4">
+              <div className="w-15 h-15 rounded-full bg-white flex items-center justify-center">
+                <div className="relative scale-[2.8]">
+                  <Image
+                    src="/icon_pink.png"
+                    alt="OcoboVoto Logo"
+                    width={100}
+                    height={48}
+                    className="object-contain"
+                    priority
+                  />
+                </div>
+              </div>
             </div>
+
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
               Super Admin
             </h1>

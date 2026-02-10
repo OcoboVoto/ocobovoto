@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { LogOut, Shield, Building2, Users } from 'lucide-react'
+import { LogoImage } from '../ui/logo'
 
 interface SuperAdminLayoutProps {
     children: React.ReactNode
@@ -59,17 +60,26 @@ export function SuperAdminLayout({ children }: SuperAdminLayoutProps) {
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
                             <div className="flex items-center gap-3">
-                                <div className="p-2 bg-slate-800 rounded-lg">
-                                    <Shield className="h-6 w-6 text-white" />
-                                </div>
-                                <div>
-                                    <h1 className="text-xl font-bold text-white">
-                                        OcoboVoto - Super Admin
-                                    </h1>
-                                    <p className="text-xs text-slate-400">
-                                        Panel de control maestro
-                                    </p>
-                                </div>
+                                {/* Logo */}
+                                <button
+                                    onClick={() => router.push('/super-admin/dashboard')}
+                                    className="flex items-center gap-3 hover:opacity-90 transition-opacity"
+                                >
+                                    <LogoImage size="md" variant='dark'/>
+
+                                    {/* Separador */}
+                                    <div className="h-8 w-px bg-slate-700" />
+
+                                    {/* Texto Super Admin */}
+                                    <div className="flex flex-col">
+                                        <span className="text-xs text-slate-400 uppercase tracking-wide">
+                                            Sistema
+                                        </span>
+                                        <span className="text-sm font-semibold text-white">
+                                            Super Administrador
+                                        </span>
+                                    </div>
+                                </button>
                             </div>
                         </div>
                         <div className="flex items-center gap-4">

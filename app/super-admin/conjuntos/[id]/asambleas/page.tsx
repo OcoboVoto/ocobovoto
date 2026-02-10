@@ -301,7 +301,7 @@ export default function AsambleasConjuntoPage({
 
                   {asamblea.estado !== 'finalizada' && (
                     <Button
-                      onClick={() => router.push(`/admin/asambleas/${asamblea.id}`)}
+                      onClick={() => router.push(`/admin/asambleas/${asamblea.id}?from=super&conjuntoId=${id}`)}
                       size="sm"
                       variant="outline"
                     >
