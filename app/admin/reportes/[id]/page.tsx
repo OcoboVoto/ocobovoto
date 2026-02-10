@@ -336,7 +336,7 @@ export default function ReportePage({
 
           {/* Footer */}
           <div className="mt-8 text-center text-xs text-gray-500">
-            <p>Generado por OcoboVoto el {format(new Date(), "d 'de' MMMM 'de' yyyy", { locale: es })}</p>
+            <p>Generado por OcoVoto el {format(new Date(), "d 'de' MMMM 'de' yyyy", { locale: es })}</p>
           </div>
         </div>
       </div>

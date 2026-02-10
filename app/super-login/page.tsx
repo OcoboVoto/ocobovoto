@@ -92,7 +92,7 @@ export default function SuperLoginPage() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="superadmin@ocobovoto.com"
+                placeholder="superadmin@ocovoto.com"
                 required
                 autoComplete="email"
               />
@@ -127,7 +127,7 @@ export default function SuperLoginPage() {
               Credenciales de prueba:
             </p>
             <p className="text-xs text-gray-400 mt-1">
-              superadmin@ocoboVoto.com / superadmin123
+              superadmin@ocovoto.com / superadmin123
             </p>
           </div>
         </div>

@@ -219,7 +219,7 @@ export async function generarReporteHTML(asambleaId: string): Promise<any> {
   </div>
 
   <p style="text-align: center; color: #666; font-size: 12px; margin-top: 40px;">
-    Generado por OcoboVoto el ${new Date().toLocaleDateString('es-CO')}
+    Generado por OcoVoto el ${new Date().toLocaleDateString('es-CO')}
   </p>
 </body>
 </html>

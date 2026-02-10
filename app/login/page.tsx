@@ -89,7 +89,7 @@ export default function LoginPage() {
               </div>
             </div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              OcoboVoto
+              OcoVoto
             </h1>
             <p className="text-gray-600">
               Ingresa para gestionar tu conjunto

@@ -36,7 +36,7 @@ import {
         <Body style={main}>
           <Container style={container}>
             <Section style={header}>
-              <Heading style={h1}>OcoboVoto</Heading>
+              <Heading style={h1}>OcoVoto</Heading>
               <Text style={headerText}>Sistema de Votación Digital</Text>
             </Section>
   
@@ -76,7 +76,7 @@ import {
               </Section>
   
               <Text style={footer}>
-                Este es un correo automático generado por OcoboVoto.
+                Este es un correo automático generado por OcoVoto.
                 <br />
                 Por favor no responder a este mensaje.
               </Text>
