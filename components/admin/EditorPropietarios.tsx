@@ -26,6 +26,7 @@ interface EditorPropietariosProps {
 export function EditorPropietarios({ conjuntoId, asambleaId, onGuardadoExitoso }: EditorPropietariosProps) {
   const [propietarios, setPropietarios] = useState<PropietarioCSV[]>([])
   const [errores, setErrores] = useState<string[]>([])
+  const [mostrarErrores, setMostrarErrores] = useState(false)
   const [cargando, setCargando] = useState(false)
   const [guardando, setGuardando] = useState(false)
   const [mensajeExito, setMensajeExito] = useState<string | null>(null)
@@ -79,8 +80,6 @@ export function EditorPropietarios({ conjuntoId, asambleaId, onGuardadoExitoso }
         cedula: '',
         torre_manzana: '',
         apto_casa: '',
-        celular: '',
-        email: '',
         coeficiente: 0,
       },
     ])
@@ -146,14 +145,14 @@ export function EditorPropietarios({ conjuntoId, asambleaId, onGuardadoExitoso }
         setMensajeExito(`✓ ${data.data.count} propietarios guardados exitosamente`)
         setTimeout(() => setMensajeExito(null), 5000)
         onGuardadoExitoso?.(data.data.count)
-      } else {
-        setErrores([data.error || 'Error al guardar'])
-        if (data.data?.invalidos) {
-          const mensajesError = data.data.invalidos.flatMap(
-            (inv: PropietarioValidado) => inv.errores || []
-          )
-          setErrores((prev) => [...prev, ...mensajesError])
-        }
+      }  else {
+        const nuevosErrores = data.data?.errores || [data.error || 'Error al guardar']
+        setErrores(nuevosErrores)
+        setMostrarErrores(true)
+        setTimeout(() => {
+          setMostrarErrores(false)
+          setErrores([])
+        }, 7000)
       }
     } catch (error) {
       setErrores(['Error de conexión. Intenta nuevamente.'])
@@ -212,8 +211,9 @@ export function EditorPropietarios({ conjuntoId, asambleaId, onGuardadoExitoso }
       )}
 
       {/* Mensajes de error */}
-      {errores.length > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+      {mostrarErrores && errores.length > 0 && (
+        <div className={`bg-red-50 border border-red-200 rounded-lg p-4 transition-opacity duration-500 ${
+          mostrarErrores ? 'opacity-100' : 'opacity-0'}`}>
           <div className="flex items-start gap-2">
             <AlertCircle className="h-5 w-5 text-red-600 mt-0.5" />
             <div className="flex-1">
@@ -240,7 +240,7 @@ export function EditorPropietarios({ conjuntoId, asambleaId, onGuardadoExitoso }
             Sube un archivo CSV o agrega propietarios manualmente
           </h3>
           <p className="text-sm text-blue-700 mb-4">
-            El CSV debe tener las columnas: Nombre, Cédula, Torre o Manzana, Apto o Casa, Celular, Email, Coeficiente
+            El CSV debe tener las columnas: Nombre, Cédula, Torre o Manzana, Apto o Casa, Coeficiente
           </p>
           <a
             href="/plantilla-propietarios.csv"
@@ -262,8 +262,6 @@ export function EditorPropietarios({ conjuntoId, asambleaId, onGuardadoExitoso }
                 <TableHead className="w-[120px]">Cédula</TableHead>
                 <TableHead className="w-[120px]">Torre/Manzana</TableHead>
                 <TableHead className="w-[100px]">Apto/Casa</TableHead>
-                <TableHead className="w-[130px]">Celular</TableHead>
-                <TableHead className="w-[180px]">Email</TableHead>
                 <TableHead className="w-[100px]">Coeficiente</TableHead>
                 <TableHead className="w-[80px]">Acciones</TableHead>
               </TableRow>
@@ -298,21 +296,6 @@ export function EditorPropietarios({ conjuntoId, asambleaId, onGuardadoExitoso }
                       value={prop.apto_casa}
                       onChange={(e) => editarCelda(index, 'apto_casa', e.target.value)}
                       placeholder="101"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      value={prop.celular || ''}
-                      onChange={(e) => editarCelda(index, 'celular', e.target.value)}
-                      placeholder="3001234567"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Input
-                      value={prop.email || ''}
-                      onChange={(e) => editarCelda(index, 'email', e.target.value)}
-                      placeholder="correo@ejemplo.com"
-                      type="email"
                     />
                   </TableCell>
                   <TableCell>

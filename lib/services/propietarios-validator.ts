@@ -53,16 +53,6 @@ export class PropietariosValidator {
         errores.push(`Fila ${filaNum}: Coeficiente debe ser un número mayor a 0`)
       }
 
-      // Validación: Email (si está presente)
-      if (prop.email && !this.validarEmail(prop.email)) {
-        errores.push(`Fila ${filaNum}: Email inválido`)
-      }
-
-      // Validación: Celular (si está presente)
-      if (prop.celular && !this.validarCelular(prop.celular)) {
-        errores.push(`Fila ${filaNum}: Celular debe tener 10 dígitos y empezar con 3`)
-      }
-
       // Clasificar
       if (errores.length > 0) {
         invalidos.push({
@@ -86,8 +76,6 @@ export class PropietariosValidator {
       cedula: prop.cedula?.toString().trim() || '',
       torre_manzana: prop.torre_manzana?.trim() || '',
       apto_casa: prop.apto_casa?.trim() || '',
-      celular: prop.celular?.toString().trim() || undefined,
-      email: prop.email?.trim() || undefined,
       coeficiente: parseFloat(prop.coeficiente) || 0,
       cedula_apoderado: prop.cedula_apoderado?.toString().trim() || undefined,
       nombre_apoderado: prop.nombre_apoderado?.trim() || undefined,

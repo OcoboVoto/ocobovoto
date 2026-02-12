@@ -29,28 +29,28 @@ model Conjunto {
 }
 
 model Propietario {
-  id                String              @id @default(uuid())
-  conjuntoId        String              @map("conjunto_id")
-  torreManzana      String              @map("torre_manzana")
-  aptoCasa          String              @map("apto_casa")
-  nombreCompleto    String              @map("nombre_completo")
-  cedula            String              @unique
-  celular           String?
-  email             String?
-  coeficiente       Decimal             @db.Decimal(10, 4)
-  activo            Boolean             @default(true)
-  createdAt         DateTime            @default(now()) @map("created_at")
-  updatedAt         DateTime            @updatedAt @map("updated_at")
-  
-  conjunto          Conjunto            @relation(fields: [conjuntoId], references: [id], onDelete: Cascade)
+  id                String   @id @default(uuid())
+  conjuntoId        String   @map("conjunto_id")
+  torreManzana      String   @map("torre_manzana")
+  aptoCasa          String   @map("apto_casa")
+  nombreCompleto    String   @map("nombre_completo")
+  cedula            String   @unique
+  coeficiente       Decimal  @db.Decimal(10, 4)
+  activo            Boolean  @default(true)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  conjunto          Conjunto @relation(fields: [conjuntoId], references: [id], onDelete: Cascade)
   registros         RegistroAsamblea[]
-  poderesOtorgados  Poder[]             @relation("PropietarioOtorgante")
-  
+  poderesOtorgados  Poder[]  @relation("PropietarioOtorgante")
+
   @@unique([conjuntoId, torreManzana, aptoCasa])
   @@index([conjuntoId])
   @@index([cedula])
+  @@index([conjuntoId, activo])
   @@map("propietarios")
 }
+
 
 model UsuarioAdmin {
   id            String    @id @default(uuid())
@@ -78,50 +78,53 @@ model SuperAdmin {
 }
 
 model Asamblea {
-  id                      String                    @id @default(uuid())
-  conjuntoId              String                    @map("conjunto_id")
-  tipo                    String
-  fechaHora               DateTime                  @map("fecha_hora")
-  modalidad               String
-  estado                  String                    @default("borrador")
-  quorumRequerido         Decimal                   @map("quorum_requerido") @db.Decimal(5, 2)
-  quorumInicial           Decimal                   @default(0) @map("quorum_inicial") @db.Decimal(5, 2)
-  quorumFinal             Decimal?                  @map("quorum_final") @db.Decimal(5, 2)
-  confirmacionActivada    Boolean                   @default(false) @map("confirmacion_activada")
-  confirmacionCerrada     Boolean                   @default(false) @map("confirmacion_cerrada") 
-  qrCodeData              String                    @map("qr_code_data")
-  ordenDia                Json?                     @map("orden_dia")
-  createdAt               DateTime                  @default(now()) @map("created_at")
-  
-  
-  conjunto                Conjunto                  @relation(fields: [conjuntoId], references: [id], onDelete: Cascade)
+  id                    String   @id @default(uuid())
+  conjuntoId            String   @map("conjunto_id")
+  tipo                  String
+  fechaHora             DateTime @map("fecha_hora")
+  modalidad             String
+  estado                String   @default("borrador")
+  quorumRequerido       Decimal  @map("quorum_requerido") @db.Decimal(5, 2)
+  quorumInicial         Decimal  @default(0) @map("quorum_inicial") @db.Decimal(5, 2)
+  quorumFinal           Decimal? @map("quorum_final") @db.Decimal(5, 2)
+  confirmacionActivada  Boolean  @default(false) @map("confirmacion_activada")
+  confirmacionCerrada   Boolean  @default(false) @map("confirmacion_cerrada") 
+  qrCodeData            String   @map("qr_code_data")
+  ordenDia              Json?    @map("orden_dia")
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  conjunto              Conjunto @relation(fields: [conjuntoId], references: [id], onDelete: Cascade)
   proposiciones           Proposicion[]
   registros               RegistroAsamblea[]
   votantes                Votante[]
   poderes                 Poder[]
   confirmaciones          ConfirmacionAsistencia[]
-  
+
   @@index([conjuntoId])
   @@index([estado])
+  @@index([conjuntoId, estado])
   @@map("asambleas")
 }
 
+
 model RegistroAsamblea {
-  id                    String       @id @default(uuid())
-  asambleaId            String       @map("asamblea_id")
-  propietarioId         String       @map("propietario_id")
-  cedulaRegistrante     String       @map("cedula_registrante")
-  horaRegistro          DateTime     @default(now()) @map("hora_registro")
-  modalidadAsistencia   String       @map("modalidad_asistencia")
-  poderesRepresentados  Json?        @map("poderes_representados")
-  
-  asamblea              Asamblea     @relation(fields: [asambleaId], references: [id], onDelete: Cascade)
-  propietario           Propietario  @relation(fields: [propietarioId], references: [id], onDelete: Cascade)
-  
+  id                    String   @id @default(uuid())
+  asambleaId            String   @map("asamblea_id")
+  propietarioId         String   @map("propietario_id")
+  cedulaRegistrante     String   @map("cedula_registrante")
+  horaRegistro          DateTime @default(now()) @map("hora_registro")
+  modalidadAsistencia   String   @map("modalidad_asistencia")
+  poderesRepresentados  Json?    @map("poderes_representados")
+
+  asamblea              Asamblea    @relation(fields: [asambleaId], references: [id], onDelete: Cascade)
+  propietario           Propietario @relation(fields: [propietarioId], references: [id], onDelete: Cascade)
+
   @@unique([asambleaId, cedulaRegistrante])
   @@index([asambleaId])
+  @@index([cedulaRegistrante]) // 🔥 NUEVO
   @@map("registros_asamblea")
 }
+
 
 model Poder {
   id                    String       @id @default(uuid())
@@ -166,7 +169,7 @@ model Proposicion {
   asambleaId            String            @map("asamblea_id")
   numeroOrden           Int               @map("numero_orden")
   titulo                String
-  descripcion           String            @db.Text
+  descripcion           String?            @db.Text
   tipoPregunta          String            @map("tipo_pregunta")
   tipoMayoria           String            @map("tipo_mayoria")
   porcentajeRequerido   Decimal           @map("porcentaje_requerido") @db.Decimal(5, 2)
@@ -214,6 +217,7 @@ model Voto {
   @@unique([proposicionId, votanteId])
   @@index([proposicionId])
   @@index([votanteId])
+  @@index([proposicionId, opcionId])
   @@map("votos")
 }
 

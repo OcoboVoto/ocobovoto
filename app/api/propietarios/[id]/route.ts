@@ -13,10 +13,7 @@ export async function PATCH(
       nombreCompleto,
       cedula,
       torreManzana,
-      aptoCasa,
-      celular,
-      email,
-      coeficiente,
+      aptoCasa
     } = body
 
     const propietario = await prisma.propietario.update({
@@ -25,10 +22,7 @@ export async function PATCH(
         nombreCompleto,
         cedula,
         torreManzana,
-        aptoCasa,
-        celular,
-        email,
-        coeficiente: parseFloat(coeficiente),
+        aptoCasa
       },
     })
 

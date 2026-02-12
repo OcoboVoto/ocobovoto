@@ -7,8 +7,6 @@ export interface PropietarioCSV {
     cedula: string
     torre_manzana: string
     apto_casa: string
-    celular?: string
-    email?: string
     coeficiente: number
     cedula_apoderado?: string
     nombre_apoderado?: string 

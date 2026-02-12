@@ -52,8 +52,6 @@ async function main() {
       aptoCasa: '101',
       nombreCompleto: 'Juan Pérez',
       cedula: '1234567890',
-      celular: '3001234567',
-      email: 'juan@email.com',
       coeficiente: 2.5,
     },
     {
@@ -61,8 +59,6 @@ async function main() {
       aptoCasa: '102',
       nombreCompleto: 'María López',
       cedula: '9876543210',
-      celular: '3109876543',
-      email: 'maria@email.com',
       coeficiente: 2.5,
     },
     {
@@ -70,8 +66,6 @@ async function main() {
       aptoCasa: '201',
       nombreCompleto: 'Carlos Ramírez',
       cedula: '5555555555',
-      celular: '3205555555',
-      email: 'carlos@email.com',
       coeficiente: 3.0,
     },
   ]

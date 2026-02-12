@@ -20,8 +20,6 @@ interface Propietario {
   cedula: string
   torreManzana: string
   aptoCasa: string
-  celular: string | null
-  email: string | null
   coeficiente: number
 }
 
@@ -34,7 +32,10 @@ export function ListaPropietarios({ propietarios, onActualizar }: ListaPropietar
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [formData, setFormData] = useState<Partial<Propietario>>({})
   const [guardando, setGuardando] = useState(false)
-  const [busqueda, setBusqueda] = useState('')
+  const [filtroNombre, setFiltroNombre] = useState('')
+  const [filtroCedula, setFiltroCedula] = useState('')
+  const [filtroTorre, setFiltroTorre] = useState('')
+  const [filtroApto, setFiltroApto] = useState('')
   const { confirm, Dialog } = useConfirmDialog()
 
   const iniciarEdicion = (prop: Propietario) => {
@@ -63,35 +64,35 @@ export function ListaPropietarios({ propietarios, onActualizar }: ListaPropietar
 
       if (data.success) {
         confirm({
-            title: 'Actualización',
-            description: 'Propietario Actualizado',
-            confirmText: 'Aceptar',
-            variant: 'success',
-            hideCancel: true,
-            onConfirm: () => {},
-          })
+          title: 'Actualización',
+          description: 'Propietario Actualizado',
+          confirmText: 'Aceptar',
+          variant: 'success',
+          hideCancel: true,
+          onConfirm: () => { },
+        })
         setEditandoId(null)
         setFormData({})
         onActualizar()
       } else {
         confirm({
-            title: 'Error',
-            description: data.error || 'Ocurrió un error al actualizar el propietario.',
-            confirmText: 'Aceptar',
-            variant: 'destructive',
-            hideCancel: true,
-            onConfirm: () => {},
-          })
+          title: 'Error',
+          description: data.error || 'Ocurrió un error al actualizar el propietario.',
+          confirmText: 'Aceptar',
+          variant: 'destructive',
+          hideCancel: true,
+          onConfirm: () => { },
+        })
       }
     } catch (error) {
-        confirm({
-            title: 'Error de conexión',
-            description: 'No fue posible actualizar. Intenta nuevamente.',
-            confirmText: 'Aceptar',
-            variant: 'destructive',
-            hideCancel: true,
-            onConfirm: () => {},
-    })
+      confirm({
+        title: 'Error de conexión',
+        description: 'No fue posible actualizar. Intenta nuevamente.',
+        confirmText: 'Aceptar',
+        variant: 'destructive',
+        hideCancel: true,
+        onConfirm: () => { },
+      })
     } finally {
       setGuardando(false)
     }
@@ -99,72 +100,103 @@ export function ListaPropietarios({ propietarios, onActualizar }: ListaPropietar
 
   const eliminar = async (id: string, nombre: string) => {
     confirm({
-        title: '¿Eliminar Propietario?',
-        description: `¿Estás seguro de eliminar a ${nombre}? Esta acción no se puede deshacer.`,
-        confirmText: 'Eliminar',
-        cancelText: 'Cancelar',
-        variant: 'destructive',
-        onConfirm: async () => {
+      title: '¿Eliminar Propietario?',
+      description: `¿Estás seguro de eliminar a ${nombre}? Esta acción no se puede deshacer.`,
+      confirmText: 'Eliminar',
+      cancelText: 'Cancelar',
+      variant: 'destructive',
+      onConfirm: async () => {
 
-    try {
-      const response = await fetch(`/api/propietarios/${id}`, {
-        method: 'DELETE',
-      })
-
-      const data = await response.json()
-
-      if (data.success) {
-        confirm({
-            title: 'Actualización',
-            description: 'Propietario Eliminado',
-            confirmText: 'Aceptar',
-            variant: 'success',
-            hideCancel: true,
-            onConfirm: () => {},
+        try {
+          const response = await fetch(`/api/propietarios/${id}`, {
+            method: 'DELETE',
           })
-        onActualizar()
-      } else {
-        confirm({
-            title: 'Error',
-            description: data.error || 'Ocurrió un error al eliminar el propietario.',
-            confirmText: 'Aceptar',
-            variant: 'destructive',
-            hideCancel: true,
-            onConfirm: () => {},
-          })
-      }
-    } catch (error) {
-        confirm({
+
+          const data = await response.json()
+
+          if (data.success) {
+            confirm({
+              title: 'Actualización',
+              description: 'Propietario Eliminado',
+              confirmText: 'Aceptar',
+              variant: 'success',
+              hideCancel: true,
+              onConfirm: () => { },
+            })
+            onActualizar()
+          } else {
+            confirm({
+              title: 'Error',
+              description: data.error || 'Ocurrió un error al eliminar el propietario.',
+              confirmText: 'Aceptar',
+              variant: 'destructive',
+              hideCancel: true,
+              onConfirm: () => { },
+            })
+          }
+        } catch (error) {
+          confirm({
             title: 'Error de conexión',
             description: 'No fue posible eliminar. Intenta nuevamente.',
             confirmText: 'Aceptar',
             variant: 'destructive',
             hideCancel: true,
-            onConfirm: () => {},
-        })
-    }
-  },
-})
-}
+            onConfirm: () => { },
+          })
+        }
+      },
+    })
+  }
+  const propietariosFiltrados = propietarios.filter((p) => {
+    const coincideNombre =
+      filtroNombre.trim().toLowerCase() === '' ||
+      p.nombreCompleto.toLowerCase().includes(filtroNombre.toLowerCase())
 
-  const propietariosFiltrados = propietarios.filter(p =>
-    p.nombreCompleto.toLowerCase().includes(busqueda.toLowerCase()) ||
-    p.cedula.includes(busqueda) ||
-    p.torreManzana.toLowerCase().includes(busqueda.toLowerCase()) ||
-    p.aptoCasa.toLowerCase().includes(busqueda.toLowerCase())
-  )
+    const coincideCedula =
+      filtroCedula === '' ||
+      p.cedula.includes(filtroCedula)
+
+    const coincideTorre =
+      filtroTorre === '' ||
+      p.torreManzana.toLowerCase().includes(filtroTorre.toLowerCase())
+
+    const coincideApto =
+      filtroApto === '' ||
+      p.aptoCasa.toLowerCase().includes(filtroApto.toLowerCase())
+
+    return coincideNombre && coincideCedula && coincideTorre && coincideApto
+  })
 
   return (
     <div className="space-y-4">
-      {/* Búsqueda */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+      {/* Filtros */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
         <Input
           type="text"
-          placeholder="Buscar por nombre, cédula, torre o apto..."
-          value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
-          className="pl-10"
+          placeholder="Nombre"
+          value={filtroNombre}
+          onChange={(e) => setFiltroNombre(e.target.value)}
+        />
+
+        <Input
+          type="text"
+          placeholder="Cédula"
+          value={filtroCedula}
+          onChange={(e) => setFiltroCedula(e.target.value)}
+        />
+
+        <Input
+          type="text"
+          placeholder="Torre"
+          value={filtroTorre}
+          onChange={(e) => setFiltroTorre(e.target.value)}
+        />
+
+        <Input
+          type="text"
+          placeholder="Apto"
+          value={filtroApto}
+          onChange={(e) => setFiltroApto(e.target.value)}
         />
       </div>
 
@@ -175,9 +207,8 @@ export function ListaPropietarios({ propietarios, onActualizar }: ListaPropietar
             <TableRow>
               <TableHead>Nombre</TableHead>
               <TableHead>Cédula</TableHead>
-              <TableHead>Ubicación</TableHead>
-              <TableHead>Celular</TableHead>
-              <TableHead>Email</TableHead>
+              <TableHead>Torre</TableHead>
+              <TableHead>Apto</TableHead>
               <TableHead>Coeficiente</TableHead>
               <TableHead className="w-[100px]">Acciones</TableHead>
             </TableRow>
@@ -185,8 +216,8 @@ export function ListaPropietarios({ propietarios, onActualizar }: ListaPropietar
           <TableBody>
             {propietariosFiltrados.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-gray-500 py-8">
-                  {busqueda ? 'No se encontraron resultados' : 'No hay propietarios cargados'}
+                <TableCell colSpan={5} className="text-center text-gray-500 py-8">
+                  {filtroApto || filtroCedula || filtroNombre || filtroTorre ? 'No se encontraron resultados' : 'No hay propietarios cargados'}
                 </TableCell>
               </TableRow>
             ) : (
@@ -208,32 +239,19 @@ export function ListaPropietarios({ propietarios, onActualizar }: ListaPropietar
                         />
                       </TableCell>
                       <TableCell>
-                        <div className="flex gap-1">
-                          <Input
-                            value={formData.torreManzana || ''}
-                            onChange={(e) => setFormData({ ...formData, torreManzana: e.target.value })}
-                            placeholder="Torre"
-                            className="w-20"
-                          />
-                          <Input
-                            value={formData.aptoCasa || ''}
-                            onChange={(e) => setFormData({ ...formData, aptoCasa: e.target.value })}
-                            placeholder="Apto"
-                            className="w-20"
-                          />
-                        </div>
-                      </TableCell>
-                      <TableCell>
                         <Input
-                          value={formData.celular || ''}
-                          onChange={(e) => setFormData({ ...formData, celular: e.target.value })}
+                          value={formData.torreManzana || ''}
+                          onChange={(e) => setFormData({ ...formData, torreManzana: e.target.value })}
+                          placeholder="Torre"
+                          className="w-20"
                         />
                       </TableCell>
                       <TableCell>
                         <Input
-                          value={formData.email || ''}
-                          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                          type="email"
+                          value={formData.aptoCasa || ''}
+                          onChange={(e) => setFormData({ ...formData, aptoCasa: e.target.value })}
+                          placeholder="Apto"
+                          className="w-20"
                         />
                       </TableCell>
                       <TableCell>
@@ -242,6 +260,7 @@ export function ListaPropietarios({ propietarios, onActualizar }: ListaPropietar
                           onChange={(e) => setFormData({ ...formData, coeficiente: parseFloat(e.target.value) })}
                           type="number"
                           step="0.01"
+                          disabled
                         />
                       </TableCell>
                       <TableCell>
@@ -269,10 +288,11 @@ export function ListaPropietarios({ propietarios, onActualizar }: ListaPropietar
                       <TableCell className="font-medium">{prop.nombreCompleto}</TableCell>
                       <TableCell>{prop.cedula}</TableCell>
                       <TableCell>
-                        {prop.torreManzana} {prop.aptoCasa}
+                        {prop.torreManzana}
                       </TableCell>
-                      <TableCell>{prop.celular || '-'}</TableCell>
-                      <TableCell>{prop.email || '-'}</TableCell>
+                      <TableCell>
+                        {prop.aptoCasa}
+                      </TableCell>
                       <TableCell>{prop.coeficiente}%</TableCell>
                       <TableCell>
                         <div className="flex gap-1">
