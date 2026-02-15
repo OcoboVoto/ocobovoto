@@ -1,4 +1,4 @@
-//app/api/registro
+//app/api/registro/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { ApiResponse } from '@/types'
@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Buscar propietario por cédula
-    const propietario = await prisma.propietario.findUnique({
+    const propietario = await prisma.propietario.findFirst({
       where: { cedula },
     })
 

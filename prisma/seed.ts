@@ -72,7 +72,13 @@ async function main() {
 
   for (const prop of propietarios) {
     await prisma.propietario.upsert({
-      where: { cedula: prop.cedula },
+      where: {
+        conjuntoId_torreManzana_aptoCasa: {
+          conjuntoId: conjunto.id,
+          torreManzana: prop.torreManzana,
+          aptoCasa: prop.aptoCasa,
+        },
+      },
       update: {},
       create: {
         ...prop,

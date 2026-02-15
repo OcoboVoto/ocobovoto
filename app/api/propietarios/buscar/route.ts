@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
       }, { status: 400 })
     }
 
-    const propietario = await prisma.propietario.findUnique({
+    const propietario = await prisma.propietario.findFirst({
       where: { cedula },
       select: {
         id: true,

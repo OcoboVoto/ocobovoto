@@ -1,4 +1,4 @@
-//app/api/poderes
+//app/api/poderes/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { ApiResponse } from '@/types'
@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
     const { asambleaId, cedulaOtorgante, cedulaApoderado, nombreApoderado } = body
 
     // Buscar propietario otorgante
-    const otorgante = await prisma.propietario.findUnique({
+    const otorgante = await prisma.propietario.findFirst({
       where: { cedula: cedulaOtorgante },
     })
 
@@ -125,7 +125,7 @@ export async function GET(request: NextRequest) {
     // Opcionalmente, buscar información del apoderado si existe en la BD
     const poderesConApoderado = await Promise.all(
       poderes.map(async (poder) => {
-        const apoderado = await prisma.propietario.findUnique({
+        const apoderado = await prisma.propietario.findFirst({
           where: { cedula: poder.cedulaApoderado },
           select: {
             id: true,
