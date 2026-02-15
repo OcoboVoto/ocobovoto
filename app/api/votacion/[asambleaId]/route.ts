@@ -32,6 +32,7 @@ export async function GET(
         nombreCompleto: true,
         coeficienteTotal: true,
         confirmoAsistencia: true,
+        propietariosRepresenta: true,
         votos: {
           select: { proposicionId: true },
         },
@@ -48,6 +49,11 @@ export async function GET(
     // Extraer votos y limpiar el objeto votante
     const proposicionesVotadas = new Set(votante.votos.map(v => v.proposicionId))
     const { votos: _, ...votanteLimpio } = votante
+
+    const votanteResponse = {
+      ...votanteLimpio,
+      coeficienteTotal: Number(votanteLimpio.coeficienteTotal),
+    }
 
     // Segunda query: proposiciones activas (inevitable, distinta tabla raíz)
     const proposiciones = await prisma.proposicion.findMany({
@@ -81,7 +87,7 @@ export async function GET(
     return NextResponse.json<ApiResponse>({
       success: true,
       data: {
-        votante: votanteLimpio,
+        votante: votanteResponse,
         proposiciones: proposicionesConEstado,
       },
     })
