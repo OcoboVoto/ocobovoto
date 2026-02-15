@@ -3,7 +3,7 @@
 import { use, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { CheckCircle2, AlertCircle, Users, Building, MapPin, Percent, Monitor } from 'lucide-react'
+import { CheckCircle2, AlertCircle, Users, Building, MapPin, Percent, Monitor, Home } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { useRouter } from 'next/navigation'
 
@@ -27,6 +27,8 @@ interface PropietarioConPoderes {
   }>
   coeficienteTotal: number
   tienePoderes: boolean
+  cantidadUnidades: number
+  unidades: string[]
 }
 
 interface AsambleaInfo {
@@ -53,29 +55,29 @@ export default function RegistroPage({
   const [cargandoAsamblea, setCargandoAsamblea] = useState(true)
   const router = useRouter()
 
-    // Cargar datos de la asamblea al montar
-    useEffect(() => {
-      const fetchAsamblea = async () => {
-        try {
-          const res = await fetch(`/api/asambleas/${asambleaId}`)
-          const data = await res.json()
-          if (data.success) {
-            setAsamblea(data.data)
-            // Pre-seleccionar modalidad según la de la asamblea
-            if (data.data.modalidad === 'virtual') {
-              setModalidad('virtual')
-            } else {
-              setModalidad('presencial')
-            }
+  // Cargar datos de la asamblea al montar
+  useEffect(() => {
+    const fetchAsamblea = async () => {
+      try {
+        const res = await fetch(`/api/asambleas/${asambleaId}`)
+        const data = await res.json()
+        if (data.success) {
+          setAsamblea(data.data)
+          // Pre-seleccionar modalidad según la de la asamblea
+          if (data.data.modalidad === 'virtual') {
+            setModalidad('virtual')
+          } else {
+            setModalidad('presencial')
           }
-        } catch (e) {
-          console.error('Error al cargar asamblea', e)
-        } finally {
-          setCargandoAsamblea(false)
         }
+      } catch (e) {
+        console.error('Error al cargar asamblea', e)
+      } finally {
+        setCargandoAsamblea(false)
       }
-      fetchAsamblea()
-    }, [asambleaId])
+    }
+    fetchAsamblea()
+  }, [asambleaId])
 
   if (cargandoAsamblea) {
     return (
@@ -208,12 +210,15 @@ export default function RegistroPage({
             <p className="text-sm text-green-800">
               Ya puedes participar en las votaciones de la asamblea
             </p>
-            {propietario?.tienePoderes && (
-              <p className="text-xs text-green-700 mt-2">
-                Votarás con un coeficiente total de {Number(propietario.coeficienteTotal).toFixed(1)}%
-                ({propietario.poderesOtorgados.length} {propietario.poderesOtorgados.length === 1 ? 'poder' : 'poderes'})
-              </p>
-            )}
+            <p className="text-xs text-green-700 mt-2">
+              Votarás con un coeficiente total de {Number(propietario?.coeficienteTotal).toFixed(4)}%
+              {propietario && propietario.cantidadUnidades > 1 && (
+                <span> ({propietario.cantidadUnidades} unidades)</span>
+              )}
+              {propietario && propietario.poderesOtorgados.length > 0 && (
+                <span> + {propietario.poderesOtorgados.length} {propietario.poderesOtorgados.length === 1 ? 'poder' : 'poderes'}</span>
+              )}
+            </p>
           </div>
 
           {/* BOTONES ACTUALIZADOS */}
@@ -240,7 +245,6 @@ export default function RegistroPage({
       </div>
     )
   }
-
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 px-4">
@@ -323,12 +327,28 @@ export default function RegistroPage({
                       </div>
                     </div>
 
+                    {/* Mostrar unidades */}
                     <div className="flex items-start gap-2">
-                      <MapPin className="h-4 w-4 text-gray-500 mt-0.5" />
+                      <Home className="h-4 w-4 text-gray-500 mt-0.5" />
                       <div className="flex-1">
-                        <p className="text-gray-700">
-                          {propietario.torreManzana} - {propietario.aptoCasa}
-                        </p>
+                        {propietario.cantidadUnidades === 1 ? (
+                          <p className="text-gray-700">
+                            {propietario.aptoCasa}
+                          </p>
+                        ) : (
+                          <div>
+                            <p className="text-gray-700 font-medium mb-1">
+                              {propietario.cantidadUnidades} unidades:
+                            </p>
+                            <div className="flex flex-wrap gap-1">
+                              {propietario.unidades.map((unidad, idx) => (
+                                <Badge key={idx} variant="secondary" className="text-xs">
+                                  {unidad}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -338,33 +358,36 @@ export default function RegistroPage({
                     <div className="flex justify-between items-center">
                       <div className="flex items-center gap-2">
                         <Percent className="h-4 w-4 text-gray-500" />
-                        <span className="text-gray-700">Coeficiente propio:</span>
+                        <span className="text-gray-700">
+                          Coeficiente {propietario.cantidadUnidades > 1 ? `(${propietario.cantidadUnidades} unidades)` : 'propio'}:
+                        </span>
                       </div>
                       <span className="font-medium text-gray-900">
-                        {Number(propietario.coeficiente).toFixed(1)}%
+                        {Number(propietario.coeficiente).toFixed(4)}%
                       </span>
                     </div>
 
-                    {propietario.tienePoderes && (
-                      <>
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-700 pl-6">Coef. por poderes:</span>
-                          <span className="font-medium text-gray-900">
-                            {(Number(propietario.coeficienteTotal) - Number(propietario.coeficiente)).toFixed(1)}%
-                          </span>
-                        </div>
-                        <div className="pt-2 border-t flex justify-between items-center">
-                          <span className="font-semibold text-gray-900">Coeficiente total:</span>
-                          <Badge variant="default" className="text-base">
-                            {Number(propietario.coeficienteTotal).toFixed(1)}%
-                          </Badge>
-                        </div>
-                      </>
+                    {propietario.poderesOtorgados.length > 0 && (
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-700 pl-6">Coef. por poderes:</span>
+                        <span className="font-medium text-gray-900">
+                          {(Number(propietario.coeficienteTotal) - Number(propietario.coeficiente)).toFixed(4)}%
+                        </span>
+                      </div>
+                    )}
+
+                    {(propietario.poderesOtorgados.length > 0 || propietario.cantidadUnidades > 1) && (
+                      <div className="pt-2 border-t flex justify-between items-center">
+                        <span className="font-semibold text-gray-900">Coeficiente total:</span>
+                        <Badge variant="default" className="text-base bg-indigo-600">
+                          {Number(propietario.coeficienteTotal).toFixed(4)}%
+                        </Badge>
+                      </div>
                     )}
                   </div>
 
                   {/* Detalle de Poderes */}
-                  {propietario.tienePoderes && (
+                  {propietario.poderesOtorgados.length > 0 && (
                     <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
                       <p className="font-medium text-blue-900 mb-2 flex items-center gap-2">
                         <Users className="h-4 w-4" />
@@ -390,7 +413,7 @@ export default function RegistroPage({
                                 </p>
                               </div>
                               <Badge variant="outline" className="text-xs">
-                                {Number(poder.otorgante.coeficiente).toFixed(1)}%
+                                {Number(poder.otorgante.coeficiente).toFixed(4)}%
                               </Badge>
                             </div>
                           </div>
@@ -405,12 +428,15 @@ export default function RegistroPage({
                       Votarás con un total de:
                     </p>
                     <p className="text-2xl font-bold text-indigo-900">
-                      {Number(propietario.coeficienteTotal).toFixed(1)}%
+                      {Number(propietario.coeficienteTotal).toFixed(4)}%
                     </p>
                     <p className="text-xs text-indigo-600">
-                      {propietario.tienePoderes
-                        ? `(1 propio + ${propietario.poderesOtorgados.length} ${propietario.poderesOtorgados.length === 1 ? 'poder' : 'poderes'
-                        })`
+                      {propietario.cantidadUnidades > 1 && propietario.poderesOtorgados.length > 0
+                        ? `(${propietario.cantidadUnidades} ${propietario.cantidadUnidades === 1 ? 'unidad' : 'unidades'} + ${propietario.poderesOtorgados.length} ${propietario.poderesOtorgados.length === 1 ? 'poder' : 'poderes'})`
+                        : propietario.cantidadUnidades > 1
+                        ? `(${propietario.cantidadUnidades} unidades propias)`
+                        : propietario.poderesOtorgados.length > 0
+                        ? `(1 propio + ${propietario.poderesOtorgados.length} ${propietario.poderesOtorgados.length === 1 ? 'poder' : 'poderes'})`
                         : '(solo coeficiente propio)'}
                     </p>
                   </div>
@@ -418,8 +444,7 @@ export default function RegistroPage({
               </div>
 
               {/* Modalidad */}
- {/* ✅ FIX 2: Selector de modalidad — SOLO visible en asambleas híbridas/mixtas */}
- {esHibrida && (
+              {esHibrida && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     ¿Cómo estás participando?

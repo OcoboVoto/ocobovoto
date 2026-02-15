@@ -1,3 +1,4 @@
+// app/api/registro/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { ApiResponse } from '@/types'
@@ -7,7 +8,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { asambleaId, cedula, nombre, modalidadAsistencia } = body
 
-    //console.log('Iniciando registro:', { asambleaId, cedula })
+    console.log('Iniciando registro:', { asambleaId, cedula })
 
     // Verificar que la asamblea existe y está activa
     const asamblea = await prisma.asamblea.findUnique({
@@ -38,25 +39,31 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    // Buscar propietario por cédula
-    const propietario = await prisma.propietario.findFirst({
-      where: { cedula },
+    // Buscar TODOS los propietarios con esa cédula (puede tener varios aptos)
+    const propietarios = await prisma.propietario.findMany({
+      where: { 
+        cedula,
+        conjuntoId: asamblea.conjunto.id, // Filtrar por conjunto de la asamblea
+        activo: true,
+      },
       select: {
         id: true,
         cedula: true,
         nombreCompleto: true,
         coeficiente: true,
+        torreManzana: true,
+        aptoCasa: true,
       }
     })
 
-    if (!propietario) {
+    if (propietarios.length === 0) {
       return NextResponse.json<ApiResponse>({
         success: false,
         error: 'Propietario no encontrado con esa cédula',
       }, { status: 404 })
     }
 
-   // console.log('Propietario encontrado:', propietario.nombreCompleto)
+    console.log(`Propietario encontrado: ${propietarios[0].nombreCompleto} con ${propietarios.length} propiedad(es)`)
 
     // Verificar si ya está registrado
     const registroExistente = await prisma.votante.findUnique({
@@ -90,24 +97,35 @@ export async function POST(request: NextRequest) {
             cedula: true,
             nombreCompleto: true,
             coeficiente: true,
+            torreManzana: true,
+            aptoCasa: true,
           }
         }
       },
     })
 
-   // console.log('Poderes recibidos:', poderesRecibidos.length)
+    console.log('Poderes recibidos:', poderesRecibidos.length)
 
-    // Calcular coeficiente total (propio + poderes recibidos)
-    let coeficienteTotal = Number(propietario.coeficiente)
-    const detalleRepresentados = [
-      {
-        id: propietario.id,
-        cedula: propietario.cedula,
-        nombre: propietario.nombreCompleto,
-        coeficiente: Number(propietario.coeficiente),
+    // Calcular coeficiente total (TODAS las propiedades + poderes recibidos)
+    let coeficienteTotal = 0
+    const detalleRepresentados: any[] = []
+
+    // Sumar coeficientes de TODAS las propiedades del propietario
+    propietarios.forEach((prop) => {
+      const coefProp = Number(prop.coeficiente)
+      coeficienteTotal += coefProp
+      
+      detalleRepresentados.push({
+        id: prop.id,
+        cedula: prop.cedula,
+        nombre: prop.nombreCompleto,
+        unidad: `${prop.torreManzana}-${prop.aptoCasa}`,
+        coeficiente: coefProp,
         esPropietario: true,
-      },
-    ]
+      })
+    })
+
+    console.log(`Coeficiente propio (${propietarios.length} unidades): ${coeficienteTotal}`)
 
     // Sumar coeficientes de los poderes recibidos
     poderesRecibidos.forEach((poder) => {
@@ -118,14 +136,15 @@ export async function POST(request: NextRequest) {
         id: poder.propietarioOtorgante.id,
         cedula: poder.propietarioOtorgante.cedula,
         nombre: poder.propietarioOtorgante.nombreCompleto,
+        unidad: `${poder.propietarioOtorgante.torreManzana}-${poder.propietarioOtorgante.aptoCasa}`,
         coeficiente: coefPoder,
         esPropietario: false,
       })
 
-      //console.log(` Poder de ${poder.propietarioOtorgante.nombreCompleto}: +${coefPoder}%`)
+      console.log(` Poder de ${poder.propietarioOtorgante.nombreCompleto}: +${coefPoder}%`)
     })
 
-   // console.log('Coeficiente total calculado:', coeficienteTotal)
+    console.log('Coeficiente total calculado:', coeficienteTotal)
 
     // OPTIMIZACIÓN: Usar transacción + aggregate en lugar de findMany
     const resultado = await prisma.$transaction(async (tx) => {
@@ -134,7 +153,7 @@ export async function POST(request: NextRequest) {
         data: {
           asambleaId,
           cedula,
-          nombreCompleto: nombre || propietario.nombreCompleto,
+          nombreCompleto: nombre || propietarios[0].nombreCompleto,
           coeficienteTotal,
           propietariosRepresenta: detalleRepresentados.length,
           detalleRepresentados,
@@ -144,7 +163,7 @@ export async function POST(request: NextRequest) {
       await tx.registroAsamblea.create({
         data: {
           asambleaId,
-          propietarioId: propietario.id,
+          propietarioId: propietarios[0].id, // Usar el primer propietario como referencia
           cedulaRegistrante: cedula,
           modalidadAsistencia,
           poderesRepresentados: poderesRecibidos.map((p) => p.id),
@@ -168,7 +187,7 @@ export async function POST(request: NextRequest) {
         data: { quorumInicial },
       })
 
-     // console.log('Registro completado - Quórum:', quorumInicial.toFixed(2), '%')
+      console.log('Registro completado - Quórum:', quorumInicial.toFixed(2), '%')
 
       return { votante, quorumActual: quorumInicial }
     })

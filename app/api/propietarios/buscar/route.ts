@@ -1,4 +1,4 @@
-//app/api/propietarios/buscar
+// app/api/propietarios/buscar/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { ApiResponse } from '@/types'
@@ -15,8 +15,31 @@ export async function GET(request: NextRequest) {
       }, { status: 400 })
     }
 
-    const propietario = await prisma.propietario.findFirst({
-      where: { cedula },
+    // 1. Buscar el conjunto de la asamblea (si se proporciona)
+    let conjuntoId: string | undefined
+    if (asambleaId) {
+      const asamblea = await prisma.asamblea.findUnique({
+        where: { id: asambleaId },
+        select: { conjuntoId: true }
+      })
+      
+      if (!asamblea) {
+        return NextResponse.json<ApiResponse>({
+          success: false,
+          error: 'Asamblea no encontrada',
+        }, { status: 404 })
+      }
+      
+      conjuntoId = asamblea.conjuntoId
+    }
+
+    // 2. Buscar TODOS los propietarios con esa cédula
+    const propietarios = await prisma.propietario.findMany({
+      where: { 
+        cedula,
+        ...(conjuntoId && { conjuntoId }), // Filtrar por conjunto si existe
+        activo: true,
+      },
       select: {
         id: true,
         nombreCompleto: true,
@@ -27,16 +50,28 @@ export async function GET(request: NextRequest) {
       },
     })
 
-    if (!propietario) {
+    if (propietarios.length === 0) {
       return NextResponse.json<ApiResponse>({
         success: false,
         error: 'Propietario no encontrado',
       }, { status: 404 })
     }
 
-    // Si se proporciona asambleaId, buscar poderes otorgados A esta persona
+    // 3. Sumar coeficientes de TODAS las propiedades
+    const coeficientePropio = propietarios.reduce(
+      (sum, prop) => sum + Number(prop.coeficiente), 
+      0
+    )
+
+    // 4. Crear lista de unidades
+    const unidadesPropias = propietarios.map(p => `${p.torreManzana}-${p.aptoCasa}`)
+    const unidadesTexto = propietarios.length > 1 
+      ? unidadesPropias.join(', ') 
+      : `${propietarios[0].torreManzana}-${propietarios[0].aptoCasa}`
+
+    // 5. Si se proporciona asambleaId, buscar poderes otorgados A esta persona
     let poderesOtorgados: any[] = []
-    let coeficienteTotal = Number(propietario.coeficiente)
+    let coeficienteTotal = coeficientePropio
 
     if (asambleaId) {
       // Buscar poderes donde ESTA PERSONA es el APODERADO
@@ -62,7 +97,6 @@ export async function GET(request: NextRequest) {
 
       // Verificar que los otorgantes no estén ya registrados
       if (poderesOtorgados.length > 0) {
-        const otorgantesIds = poderesOtorgados.map(p => p.propietarioOtorgante.id)
         const otorgantesRegistrados = await prisma.votante.findMany({
           where: {
             asambleaId,
@@ -88,20 +122,29 @@ export async function GET(request: NextRequest) {
       // Calcular coeficiente total (propio + poderes)
       coeficienteTotal = poderesOtorgados.reduce(
         (sum, poder) => sum + Number(poder.propietarioOtorgante.coeficiente),
-        Number(propietario.coeficiente)
+        coeficientePropio
       )
     }
 
+    console.log(`Propietario ${propietarios[0].nombreCompleto}: ${propietarios.length} unidad(es), coef. propio: ${coeficientePropio.toFixed(4)}%, total: ${coeficienteTotal.toFixed(4)}%`)
+
     return NextResponse.json<ApiResponse>({
       success: true,
-      data:{
-        ...propietario,
+      data: {
+        id: propietarios[0].id,
+        nombreCompleto: propietarios[0].nombreCompleto,
+        cedula: propietarios[0].cedula,
+        torreManzana: propietarios.length > 1 ? 'Múltiples' : propietarios[0].torreManzana,
+        aptoCasa: unidadesTexto,
+        coeficiente: coeficientePropio, // Suma de todas sus propiedades
         poderesOtorgados: poderesOtorgados.map(p => ({
           id: p.id,
           otorgante: p.propietarioOtorgante,
         })),
         coeficienteTotal,
         tienePoderes: poderesOtorgados.length > 0,
+        cantidadUnidades: propietarios.length, // Nuevo campo
+        unidades: unidadesPropias, // Nuevo campo: array de unidades
       },
     })
 
