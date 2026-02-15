@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { ApiResponse } from '@/types'
+import { supabase } from '@/lib/supabase/createBrowserClient'
 
 export async function POST(
   request: NextRequest,
@@ -9,7 +10,6 @@ export async function POST(
   try {
     const { id } = await params
 
-    // Obtener asamblea con votantes
     const asamblea = await prisma.asamblea.findUnique({
       where: { id },
       include: {
@@ -25,9 +25,8 @@ export async function POST(
       }, { status: 404 })
     }
 
-    // Calcular quórum final con los que confirmaron
     const votantesConfirmados = asamblea.votantes.filter(v => v.confirmoAsistencia)
-    
+
     const coeficienteFinal = votantesConfirmados.reduce(
       (sum, v) => sum + Number(v.coeficienteTotal),
       0
@@ -36,13 +35,34 @@ export async function POST(
     const coeficienteTotal = Number(asamblea.conjunto.coeficienteTotal)
     const quorumFinal = (coeficienteFinal / coeficienteTotal) * 100
 
-    // Ya no se puede confirmar más
     await prisma.asamblea.update({
       where: { id },
       data: {
         quorumFinal,
         confirmacionActivada: false,
-        confirmacionCerrada: true
+        confirmacionCerrada: true,
+      },
+    })
+
+    // ✅ Broadcast con service_role (no browser client)
+    await supabase.channel(`asamblea-${id}`).send({
+      type: 'broadcast',
+      event: 'confirmacion',
+      payload: {
+        confirmacionActivada: false,
+        confirmacionCerrada: true,
+      },
+    })
+
+    // ✅ Broadcast de cambio de estado para el detalle admin
+    await supabase.channel(`asamblea-${id}`).send({
+      type: 'broadcast',
+      event: 'asamblea-update',
+      payload: {
+        tipo: 'confirmacion-cerrada',
+        quorumFinal,
+        totalConfirmados: votantesConfirmados.length,
+        totalVotantes: asamblea.votantes.length,
       },
     })
 
@@ -55,7 +75,6 @@ export async function POST(
       },
       message: 'Confirmación cerrada y quórum final calculado',
     })
-
   } catch (error) {
     console.error('Error en POST /api/asambleas/[id]/cerrar-confirmacion:', error)
     return NextResponse.json<ApiResponse>({

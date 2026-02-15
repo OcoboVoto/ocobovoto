@@ -1,7 +1,9 @@
+//app/api/asambleas/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { ApiResponse } from '@/types'
 import { serializeAsamblea } from '@/lib/utils/serialize-decimal'
+import { supabase } from '@/lib/supabase/createBrowserClient'
 
 // GET: Obtener asamblea por ID
 export async function GET(
@@ -76,31 +78,40 @@ export async function GET(
 }
 
 // PATCH: Actualizar estado de asamblea
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id } = await params
-    const body = await request.json()
-    const { estado } = body
-
-    const asamblea = await prisma.asamblea.update({
-      where: { id },
-      data: { estado }
-    })
-
-
-    return NextResponse.json<ApiResponse>({
-      success: true,
-      data: asamblea,
-      message: 'Asamblea actualizada',
-    })
-  } catch (error) {
-    console.error('Error en PATCH /api/asambleas/[id]:', error)
-    return NextResponse.json<ApiResponse>({
-      success: false,
-      error: 'Error al actualizar',
-    }, { status: 500 })
-  }
+export async function PATCH(  
+  request: NextRequest,  
+  { params }: { params: Promise<{ id: string }> }  
+) {  
+  try {  
+    const { id } = await params  
+    const body = await request.json()  
+    const { estado } = body  
+  
+    const asamblea = await prisma.asamblea.update({  
+      where: { id },  
+      data: { estado },  
+    })  
+  
+    // ✅ Broadcast del cambio de estado  
+    await supabase.channel(`asamblea-${id}`).send({  
+      type: 'broadcast',  
+      event: 'asamblea-update',  
+      payload: {  
+        tipo: 'estado-cambio',  
+        estado,  
+      },  
+    })  
+  
+    return NextResponse.json<ApiResponse>({  
+      success: true,  
+      data: asamblea,  
+      message: 'Asamblea actualizada',  
+    })  
+  } catch (error) {  
+    console.error('Error en PATCH /api/asambleas/[id]:', error)  
+    return NextResponse.json<ApiResponse>({  
+      success: false,  
+      error: 'Error al actualizar',  
+    }, { status: 500 })  
+  }  
 }

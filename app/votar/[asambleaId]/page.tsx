@@ -1,4 +1,3 @@
-//app/votar/[asambleaId]/page.tsx
 'use client'
 
 import { use, useEffect, useState } from 'react'
@@ -6,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { CheckCircle2, AlertCircle, Vote, LogOut, UserCheck } from 'lucide-react'
 import { toast } from 'sonner'
+import { supabase } from '@/lib/supabase/createBrowserClient'
 
 interface Proposicion {
     id: string
@@ -33,7 +33,6 @@ export default function VotacionPage({
 }: {
     params: Promise<{ asambleaId: string }>
 }) {
-
     const [inicializando, setInicializando] = useState(true)
     const { asambleaId } = use(params)
     const [cedula, setCedula] = useState('')
@@ -46,10 +45,22 @@ export default function VotacionPage({
     const [mostrarAlertaConfirmacion, setMostrarAlertaConfirmacion] = useState(false)
     const [confirmando, setConfirmando] = useState(false)
 
+    // ── Helpers ──────────────────────────────────────────────
+    const refrescarProposiciones = async (cedulaValue: string) => {
+        try {
+            const response = await fetch(`/api/votacion/${asambleaId}?cedula=${cedulaValue}`)
+            const data = await response.json()
+            if (data.success) {
+                setProposiciones(data.data.proposiciones)
+            }
+        } catch (err) {
+            console.error('[Realtime] Error refrescando proposiciones:', err)
+        }
+    }
+
     const autenticar = () => autenticarConCedula(cedula)
 
     const autenticarConCedula = async (cedulaValue: string) => {
-
         if (cedulaValue.length < 6) {
             setError('Ingresa una cédula válida')
             return
@@ -123,89 +134,11 @@ export default function VotacionPage({
         setProposiciones([])
     }
 
-    // Auto-autenticar si hay cédula en sessionStorage
-    useEffect(() => {
-        const restaurarSesion = async () => {
-            const cedulaGuardada = sessionStorage.getItem('cedula_votante')
-
-            if (cedulaGuardada) {
-                await autenticarConCedula(cedulaGuardada)
-            }
-            setInicializando(false)
-        }
-        restaurarSesion()
-    }, [asambleaId])
-
-    // Polling cada 10 segundos para nuevas proposiciones
-    useEffect(() => {
-        if (autenticado) {
-            const interval = setInterval(() => {
-                fetch(`/api/votacion/${asambleaId}?cedula=${cedula}`)
-                    .then(res => res.json())
-                    .then(data => {
-                        if (data.success) {
-                            setProposiciones(data.data.proposiciones)
-                            setVotante(data.data.votante)
-                        }
-                    })
-            }, 10000)
-
-            return () => clearInterval(interval)
-        }
-    }, [autenticado, asambleaId, cedula])
-
-    // Verificar si necesita confirmar asistencia
-    useEffect(() => {
-        if (autenticado && votante) {
-            const verificarConfirmacion = async () => {
-                try {
-                    const response = await fetch(`/api/asambleas/${asambleaId}`)
-                    const data = await response.json()
-
-                    if (data.success && data.data.confirmacionActivada) {
-
-                        // Verificar si ya confirmó
-                        const yaConfirmo = data.data.votantes?.find(
-                            (v: any) => v.id === votante.id)
-
-                        if (yaConfirmo) {
-                            if (yaConfirmo.confirmoAsistencia) {
-                                setMostrarAlertaConfirmacion(false)
-                                if (!votante.confirmoAsistencia) {
-                                    setVotante(prev => prev ? {
-                                        ...prev,
-                                        confirmoAsistencia: true,
-                                    } : null)
-                                }
-                            } else {
-                                // Mostrar alerta para confirmar
-                                setMostrarAlertaConfirmacion(true)
-                            }
-                        }
-                    } else {
-                        setMostrarAlertaConfirmacion(false)
-                    }
-                } catch (error) {
-                    console.error('Error al verificar confirmación:', error)
-                }
-            }
-
-            verificarConfirmacion()
-            const interval = setInterval(verificarConfirmacion, 5000)
-            return () => clearInterval(interval)
-        }
-    }, [autenticado, votante, asambleaId])
-
     const confirmarAsistencia = async () => {
         if (!votante) return
         setConfirmando(true)
 
         try {
-            console.log('📤 Enviando confirmación...', {
-                asambleaId,
-                votanteId: votante.id,
-            })
-
             const response = await fetch('/api/confirmacion', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -216,15 +149,12 @@ export default function VotacionPage({
             })
 
             const data = await response.json()
-            console.log('📥 Respuesta:', data)
 
             if (data.success) {
-                // ACTUALIZAR EL ESTADO LOCAL DEL VOTANTE
                 setVotante(prev => prev ? {
                     ...prev,
                     confirmoAsistencia: true,
                 } : null)
-
                 setMostrarAlertaConfirmacion(false)
                 toast.success('Asistencia confirmada exitosamente')
             } else {
@@ -236,6 +166,115 @@ export default function VotacionPage({
             setConfirmando(false)
         }
     }
+
+    // ── Auto-autenticar ─────────────────────────────────────
+    useEffect(() => {
+        const restaurarSesion = async () => {
+            const cedulaGuardada = sessionStorage.getItem('cedula_votante')
+            if (cedulaGuardada) {
+                await autenticarConCedula(cedulaGuardada)
+            }
+            setInicializando(false)
+        }
+        restaurarSesion()
+    }, [asambleaId])
+
+// ── REALTIME: Canal único — SIN polling ─────────────────
+useEffect(() => {
+    if (!autenticado || !cedula || !votante) return
+
+   // console.log('[Realtime] Suscribiendo canales votacion-', asambleaId)
+
+    // Canal 1: postgres_changes para proposiciones y votos
+    const channelDB = supabase
+        .channel(`votacion-db-${asambleaId}-${votante.id}`)
+        .on(
+            'postgres_changes',
+            {
+                event: '*',
+                schema: 'public',
+                table: 'proposiciones',
+            },
+            async (payload) => {
+                const newData = payload.new as any
+                if (newData?.asamblea_id && newData.asamblea_id !== asambleaId) return
+               // console.log('[Realtime] ✅ Proposición:', payload.eventType)
+                await refrescarProposiciones(cedula)
+            }
+        )
+        .on(
+            'postgres_changes',
+            {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'votos',
+            },
+            (payload) => {
+                const newData = payload.new as any
+                if (newData?.votante_id && newData.votante_id !== votante.id) return
+               // console.log('[Realtime] ✅ Voto registrado:', newData?.proposicion_id)
+                const proposicionId = newData?.proposicion_id
+                if (proposicionId) {
+                    setProposiciones(props =>
+                        props.map(p =>
+                            p.id === proposicionId ? { ...p, yaVoto: true } : p
+                        )
+                    )
+                }
+            }
+        )
+        .subscribe((status) => {
+           // console.log('[Realtime] Canal DB:', status)
+        })
+
+    // Canal 2: BROADCAST para confirmación de asistencia (evita el 401 de asambleas)
+    const channelBroadcast = supabase
+        .channel(`asamblea-${asambleaId}`)
+        .on('broadcast', { event: 'confirmacion' }, (payload) => {
+           // console.log('[Realtime] ✅ Broadcast confirmación:', payload.payload)
+
+            const data = payload.payload
+
+            if (data.confirmacionActivada && !votante.confirmoAsistencia) {
+                setMostrarAlertaConfirmacion(true)
+            }
+
+            if (!data.confirmacionActivada || data.confirmacionCerrada) {
+                setMostrarAlertaConfirmacion(false)
+            }
+        })
+        .subscribe((status) => {
+           // console.log('[Realtime] Canal Broadcast:', status)
+        })
+
+    // Verificación inicial (solo 1 vez)
+    const verificarConfirmacionInicial = async () => {
+        try {
+            const response = await fetch(`/api/asambleas/${asambleaId}`)
+            const data = await response.json()
+            if (data.success && data.data.confirmacionActivada && !data.data.confirmacionCerrada) {
+                const yaConfirmo = data.data.votantes?.find(
+                    (v: any) => v.id === votante.id
+                )
+                if (yaConfirmo && !yaConfirmo.confirmoAsistencia) {
+                    setMostrarAlertaConfirmacion(true)
+                }
+            }
+        } catch (error) {
+            console.error('Error al verificar confirmación:', error)
+        }
+    }
+
+    verificarConfirmacionInicial()
+
+    return () => {
+       // console.log('[Realtime] Removiendo canales')
+        supabase.removeChannel(channelDB)
+        supabase.removeChannel(channelBroadcast)
+    }
+}, [autenticado, asambleaId, cedula, votante?.id])
+
+    // ── RENDER ──────────────────────────────────────────────
 
     if (inicializando) {
         return (

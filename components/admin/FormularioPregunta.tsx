@@ -146,7 +146,7 @@ export function FormularioProposicion({ asambleaId, onResultado }: FormularioPro
             className="w-full border rounded-lg px-3 py-2"
           >
             <option value="simple">Mayoría Simple (50%)</option>
-            <option value="calificada">Mayoría Calificada</option>
+            <option value="calificada">Mayoría Calificada (70%)</option>
           </select>
         </div>
       </div>

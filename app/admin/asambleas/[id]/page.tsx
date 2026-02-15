@@ -126,9 +126,9 @@ export default function DetalleAsambleaPage({
         const proposiciones: any[] = data.data.proposiciones
         proposiciones.sort((a: any, b: any) => b.numeroOrden - a.numeroOrden)
 
-        setAsamblea({ ...data.data, proposiciones })  
-        proposicionesRef.current = proposiciones.map(  
-          (p: any) => ({ id: p.id, estado: p.estado })  
+        setAsamblea({ ...data.data, proposiciones })
+        proposicionesRef.current = proposiciones.map(
+          (p: any) => ({ id: p.id, estado: p.estado })
         )
 
         proposiciones
@@ -148,34 +148,28 @@ export default function DetalleAsambleaPage({
   }, [id])
 
 
-  //RealTime 
+  // RealTime  
   useEffect(() => {
     if (!id) return
 
-    let channel: ReturnType<typeof supabase.channel> | null = null
+    let channelDB: ReturnType<typeof supabase.channel> | null = null
+    let channelBroadcast: ReturnType<typeof supabase.channel> | null = null
 
     const timeoutId = setTimeout(() => {
-      channel = supabase
-        .channel(`detalle-asamblea-${id}`)
+      // Canal 1: postgres_changes (tablas que SÍ funcionan)  
+      channelDB = supabase
+        .channel(`detalle-asamblea-db-${id}`)
         .on(
           'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'votos',
-          },
+          { event: 'INSERT', schema: 'public', table: 'votos' },
           (payload) => {
-            console.log('Realtime payload:', payload)
-
+            //console.log('[Realtime] Nuevo voto:', payload)
             const proposicionId =
               payload.new.proposicionId || payload.new.proposicion_id
 
             if (proposicionId) {
               fetchResultadosProposicion(proposicionId)
             } else {
-              console.warn(
-                '[Realtime] payload.new vacío. Aplica fix_rls_votos.sql en Supabase.'
-              )
               proposicionesRef.current
                 .filter((p) => p.estado === 'activa' || p.estado === 'cerrada')
                 .forEach((p) => fetchResultadosProposicion(p.id))
@@ -184,66 +178,59 @@ export default function DetalleAsambleaPage({
         )
         .on(
           'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'votantes',
-          },
+          { event: 'INSERT', schema: 'public', table: 'votantes' },
           (payload) => {
-            console.log('[Realtime] Nuevo votante:', payload)
-
-            // Filtrar manualmente por asamblea_id  
+           // console.log('[Realtime] Nuevo votante:', payload)
             const asambleaIdPayload =
               payload.new.asambleaId || payload.new.asamblea_id
 
             if (!asambleaIdPayload || asambleaIdPayload === id) {
-              console.log('[Realtime] Recargando votantes...')
+             // console.log('[Realtime] Recargando votantes...')
               fetchAsamblea()
-            } else {
-              console.log('[Realtime] Votante de otra asamblea, ignorando.', {
-                esperado: id,
-                recibido: asambleaIdPayload,
-              })
             }
           }
         )
-        // Listener para proposiciones (cambios de estado)  
         .on(
           'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'proposiciones',
-          },
+          { event: '*', schema: 'public', table: 'proposiciones' },
           (payload) => {
-            console.log('[Realtime] Cambio en proposiciones:', payload)
+            //console.log('[Realtime] Cambio en proposiciones:', payload)
             fetchAsamblea()
           }
         )
-        // Listener para confirmaciones de asistencia  
         .on(
           'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'confirmaciones_asistencia',
-          },
+          { event: '*', schema: 'public', table: 'confirmaciones_asistencia' },
           (payload) => {
-            console.log('[Realtime] Cambio en confirmaciones:', payload)
+            //console.log('[Realtime] Cambio en confirmaciones:', payload)
             fetchAsamblea()
           }
         )
         .subscribe((status) => {
-          console.log(`[Realtime detalle-asamblea-all-${id}] status:`, status)
+         // console.log(`[Realtime] Canal DB:`, status)
+        })
+
+      // Canal 2: BROADCAST para cambios en asambleas (evita el 401)  
+      channelBroadcast = supabase
+        .channel(`asamblea-${id}`)
+        .on('broadcast', { event: 'asamblea-update' }, (payload) => {
+          //console.log('[Realtime] ✅ Broadcast asamblea-update:', payload.payload)
+          // Recargar toda la asamblea para reflejar cambios  
+          fetchAsamblea()
+        })
+        .on('broadcast', { event: 'confirmacion' }, (payload) => {
+          //console.log('[Realtime] ✅ Broadcast confirmacion:', payload.payload)
+          fetchAsamblea()
+        })
+        .subscribe((status) => {
+          //console.log('[Realtime] Canal Broadcast:', status)
         })
     }, 0)
 
     return () => {
       clearTimeout(timeoutId)
-      if (channel) {
-        supabase.removeChannel(channel)
-        channel = null
-      }
+      if (channelDB) supabase.removeChannel(channelDB)
+      if (channelBroadcast) supabase.removeChannel(channelBroadcast)
     }
   }, [id, fetchResultadosProposicion, fetchAsamblea])
 

@@ -1,3 +1,4 @@
+//app/api/confirmacion/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { ApiResponse } from '@/types'
@@ -7,7 +8,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { asambleaId, votanteId } = body
 
-    console.log('🔵 Recibiendo confirmación:', { asambleaId, votanteId })
+    //console.log('Recibiendo confirmación:', { asambleaId, votanteId })
 
     // Verificar que la confirmación está activada
     const asamblea = await prisma.asamblea.findUnique({
@@ -55,13 +56,13 @@ export async function POST(request: NextRequest) {
     })
 
     if (yaConfirmo) {
-      console.log('Ya había confirmado')
+     // console.log('Ya había confirmado')
       return NextResponse.json<ApiResponse>({
         success: false,
         error: 'Ya confirmaste tu asistencia',
       }, { status: 400 })
     }
-    console.log('Registrando confirmación...')
+    //console.log('Registrando confirmación...')
     // Registrar confirmación
     await prisma.confirmacionAsistencia.create({
       data: {
@@ -78,7 +79,7 @@ export async function POST(request: NextRequest) {
         horaConfirmacion: new Date(),
       },
     })
-    console.log('✅ Votante actualizado')
+    //console.log('Votante actualizado')
 
     // Recalcular quórum final
     const votantesConfirmados = await prisma.votante.findMany({

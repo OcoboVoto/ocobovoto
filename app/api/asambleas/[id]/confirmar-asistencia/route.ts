@@ -1,7 +1,6 @@
-// app/api/asambleas/[id]/confirmar-asistencia/route.ts
-
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { supabase } from '@/lib/supabase/createBrowserClient'
 import { ApiResponse } from '@/types'
 
 const MAX_CONFIRMACIONES = 2
@@ -74,6 +73,17 @@ export async function POST(
 
     const usosRestantes = MAX_CONFIRMACIONES - asambleaActualizada.confirmacionUsada
 
+    // ✅ BROADCAST: Notificar a todos los votantes conectados
+    await supabase.channel(`asamblea-${id}`).send({
+      type: 'broadcast',
+      event: 'confirmacion',
+      payload: {
+        confirmacionActivada: true,
+        confirmacionCerrada: false,
+        confirmacionUsada: asambleaActualizada.confirmacionUsada,
+      },
+    })
+
     return NextResponse.json<ApiResponse>({
       success: true,
       data: {
@@ -81,7 +91,7 @@ export async function POST(
         usosRestantes,
         totalVotantes: asamblea.votantes.length,
       },
-      message: `Confirmación #${asambleaActualizada.confirmacionUsada} activada. ${usosRestantes > 0 ? `Te queda ${usosRestantes} más.` : 'Esta era la última confirmación permitida.'}`,
+      message: `Confirmación #${asambleaActualizada.confirmacionUsada} activada.`,
     })
   } catch (error) {
     console.error('Error en POST confirmar-asistencia:', error)
