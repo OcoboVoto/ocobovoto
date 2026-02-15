@@ -28,27 +28,27 @@ model Conjunto {
   @@map("conjuntos")
 }
 
-model Propietario {
-  id                String   @id @default(uuid())
-  conjuntoId        String   @map("conjunto_id")
-  torreManzana      String   @map("torre_manzana")
-  aptoCasa          String   @map("apto_casa")
-  nombreCompleto    String   @map("nombre_completo")
-  cedula            String   @unique
-  coeficiente       Decimal  @db.Decimal(10, 4)
-  activo            Boolean  @default(true)
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
-
-  conjunto          Conjunto @relation(fields: [conjuntoId], references: [id], onDelete: Cascade)
-  registros         RegistroAsamblea[]
-  poderesOtorgados  Poder[]  @relation("PropietarioOtorgante")
-
-  @@unique([conjuntoId, torreManzana, aptoCasa])
-  @@index([conjuntoId])
-  @@index([cedula])
-  @@index([conjuntoId, activo])
-  @@map("propietarios")
+model Propietario {  
+  id                String   @id @default(uuid())  
+  conjuntoId        String   @map("conjunto_id")  
+  torreManzana      String   @map("torre_manzana")  
+  aptoCasa          String   @map("apto_casa")  
+  nombreCompleto    String   @map("nombre_completo")  
+  cedula            String  
+  coeficiente       Decimal  @db.Decimal(10, 4)  
+  activo            Boolean  @default(true)  
+  createdAt         DateTime @default(now()) @map("created_at")  
+  updatedAt         DateTime @updatedAt @map("updated_at")  
+  
+  conjunto          Conjunto @relation(fields: [conjuntoId], references: [id], onDelete: Cascade)  
+  registros         RegistroAsamblea[]  
+  poderesOtorgados  Poder[]  @relation("PropietarioOtorgante")  
+  
+  @@unique([conjuntoId, torreManzana, aptoCasa])  
+  @@index([conjuntoId])  
+  @@index([cedula])  
+  @@index([conjuntoId, activo])  
+  @@map("propietarios")  
 }
 
 
@@ -89,8 +89,10 @@ model Asamblea {
   quorumFinal           Decimal? @map("quorum_final") @db.Decimal(5, 2)
   confirmacionActivada  Boolean  @default(false) @map("confirmacion_activada")
   confirmacionCerrada   Boolean  @default(false) @map("confirmacion_cerrada") 
+  confirmacionUsada    Int      @default(0) @map("confirmacion_usada")
   qrCodeData            String   @map("qr_code_data")
   ordenDia              Json?    @map("orden_dia")
+  linkZoom             String?  @map("link_zoom")
   createdAt             DateTime @default(now()) @map("created_at")
 
   conjunto              Conjunto @relation(fields: [conjuntoId], references: [id], onDelete: Cascade)
@@ -121,7 +123,7 @@ model RegistroAsamblea {
 
   @@unique([asambleaId, cedulaRegistrante])
   @@index([asambleaId])
-  @@index([cedulaRegistrante]) // 🔥 NUEVO
+  @@index([cedulaRegistrante])
   @@map("registros_asamblea")
 }
 

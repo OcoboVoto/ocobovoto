@@ -27,14 +27,6 @@ export class PropietariosValidator {
         if (cedula.length < 6 || cedula.length > 12) {
           errores.push(`Fila ${filaNum}: Cédula debe tener entre 6 y 12 dígitos`)
         }
-
-        // Detectar duplicados
-        if (cedulasRegistradas.has(cedula)) {
-          errores.push(`Fila ${filaNum}: Cédula duplicada`)
-          duplicados.push(this.normalizarPropietario(prop))
-        } else {
-          cedulasRegistradas.add(cedula)
-        }
       }
 
       // Validación: Torre/Manzana requerida

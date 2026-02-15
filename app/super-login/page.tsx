@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { AlertCircle, Shield } from 'lucide-react'
 import Image from 'next/image'
+import { Footer } from '@/components/layouts/Footer'
 
 export default function SuperLoginPage() {
   const router = useRouter()
@@ -123,12 +124,7 @@ export default function SuperLoginPage() {
 
           {/* Footer */}
           <div className="mt-6 text-center">
-            <p className="text-sm text-gray-500">
-              Credenciales de prueba:
-            </p>
-            <p className="text-xs text-gray-400 mt-1">
-              superadmin@ocovoto.com / superadmin123
-            </p>
+            <Footer role='SUPER_ADMIN' />
           </div>
         </div>
       </div>

@@ -11,7 +11,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Edit, Save, X, Trash2, Search } from 'lucide-react'
+import { Edit, Save, X, Trash2 } from 'lucide-react'
 import { useConfirmDialog } from '@/components/hooks/useConfirmDialog'
 
 interface Propietario {
@@ -28,6 +28,8 @@ interface ListaPropietariosProps {
   onActualizar: () => void
 }
 
+const ITEMS_POR_PAGINA = 15
+
 export function ListaPropietarios({ propietarios, onActualizar }: ListaPropietariosProps) {
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [formData, setFormData] = useState<Partial<Propietario>>({})
@@ -36,6 +38,7 @@ export function ListaPropietarios({ propietarios, onActualizar }: ListaPropietar
   const [filtroCedula, setFiltroCedula] = useState('')
   const [filtroTorre, setFiltroTorre] = useState('')
   const [filtroApto, setFiltroApto] = useState('')
+  const [paginaActual, setPaginaActual] = useState(1)
   const { confirm, Dialog } = useConfirmDialog()
 
   const iniciarEdicion = (prop: Propietario) => {
@@ -50,18 +53,14 @@ export function ListaPropietarios({ propietarios, onActualizar }: ListaPropietar
 
   const guardarEdicion = async () => {
     if (!editandoId) return
-
     setGuardando(true)
-
     try {
       const response = await fetch(`/api/propietarios/${editandoId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       })
-
       const data = await response.json()
-
       if (data.success) {
         confirm({
           title: 'Actualización',
@@ -69,7 +68,7 @@ export function ListaPropietarios({ propietarios, onActualizar }: ListaPropietar
           confirmText: 'Aceptar',
           variant: 'success',
           hideCancel: true,
-          onConfirm: () => { },
+          onConfirm: () => {},
         })
         setEditandoId(null)
         setFormData({})
@@ -81,7 +80,7 @@ export function ListaPropietarios({ propietarios, onActualizar }: ListaPropietar
           confirmText: 'Aceptar',
           variant: 'destructive',
           hideCancel: true,
-          onConfirm: () => { },
+          onConfirm: () => {},
         })
       }
     } catch (error) {
@@ -91,7 +90,7 @@ export function ListaPropietarios({ propietarios, onActualizar }: ListaPropietar
         confirmText: 'Aceptar',
         variant: 'destructive',
         hideCancel: true,
-        onConfirm: () => { },
+        onConfirm: () => {},
       })
     } finally {
       setGuardando(false)
@@ -106,14 +105,11 @@ export function ListaPropietarios({ propietarios, onActualizar }: ListaPropietar
       cancelText: 'Cancelar',
       variant: 'destructive',
       onConfirm: async () => {
-
         try {
           const response = await fetch(`/api/propietarios/${id}`, {
             method: 'DELETE',
           })
-
           const data = await response.json()
-
           if (data.success) {
             confirm({
               title: 'Actualización',
@@ -121,8 +117,14 @@ export function ListaPropietarios({ propietarios, onActualizar }: ListaPropietar
               confirmText: 'Aceptar',
               variant: 'success',
               hideCancel: true,
-              onConfirm: () => { },
+              onConfirm: () => {},
             })
+            // Ajustar página si queda vacía
+            const nuevoTotal = propietariosFiltrados.length - 1
+            const nuevasTotalPaginas = Math.ceil(nuevoTotal / ITEMS_POR_PAGINA)
+            if (paginaActual > nuevasTotalPaginas && nuevasTotalPaginas > 0) {
+              setPaginaActual(nuevasTotalPaginas)
+            }
             onActualizar()
           } else {
             confirm({
@@ -131,7 +133,7 @@ export function ListaPropietarios({ propietarios, onActualizar }: ListaPropietar
               confirmText: 'Aceptar',
               variant: 'destructive',
               hideCancel: true,
-              onConfirm: () => { },
+              onConfirm: () => {},
             })
           }
         } catch (error) {
@@ -141,31 +143,40 @@ export function ListaPropietarios({ propietarios, onActualizar }: ListaPropietar
             confirmText: 'Aceptar',
             variant: 'destructive',
             hideCancel: true,
-            onConfirm: () => { },
+            onConfirm: () => {},
           })
         }
       },
     })
   }
+
   const propietariosFiltrados = propietarios.filter((p) => {
     const coincideNombre =
       filtroNombre.trim().toLowerCase() === '' ||
       p.nombreCompleto.toLowerCase().includes(filtroNombre.toLowerCase())
-
     const coincideCedula =
-      filtroCedula === '' ||
-      p.cedula.includes(filtroCedula)
-
+      filtroCedula === '' || p.cedula.includes(filtroCedula)
     const coincideTorre =
       filtroTorre === '' ||
       p.torreManzana.toLowerCase().includes(filtroTorre.toLowerCase())
-
     const coincideApto =
       filtroApto === '' ||
       p.aptoCasa.toLowerCase().includes(filtroApto.toLowerCase())
-
     return coincideNombre && coincideCedula && coincideTorre && coincideApto
   })
+
+  // Paginación
+  const totalPaginas = Math.ceil(propietariosFiltrados.length / ITEMS_POR_PAGINA)
+  const propietariosPaginados = propietariosFiltrados.slice(
+    (paginaActual - 1) * ITEMS_POR_PAGINA,
+    paginaActual * ITEMS_POR_PAGINA
+  )
+
+  // Resetear página cuando cambian los filtros
+  const handleFiltro = (setter: (v: string) => void, valor: string) => {
+    setter(valor)
+    setPaginaActual(1)
+  }
 
   return (
     <div className="space-y-4">
@@ -175,28 +186,25 @@ export function ListaPropietarios({ propietarios, onActualizar }: ListaPropietar
           type="text"
           placeholder="Nombre"
           value={filtroNombre}
-          onChange={(e) => setFiltroNombre(e.target.value)}
+          onChange={(e) => handleFiltro(setFiltroNombre, e.target.value)}
         />
-
         <Input
           type="text"
           placeholder="Cédula"
           value={filtroCedula}
-          onChange={(e) => setFiltroCedula(e.target.value)}
+          onChange={(e) => handleFiltro(setFiltroCedula, e.target.value)}
         />
-
         <Input
           type="text"
           placeholder="Torre"
           value={filtroTorre}
-          onChange={(e) => setFiltroTorre(e.target.value)}
+          onChange={(e) => handleFiltro(setFiltroTorre, e.target.value)}
         />
-
         <Input
           type="text"
           placeholder="Apto"
           value={filtroApto}
-          onChange={(e) => setFiltroApto(e.target.value)}
+          onChange={(e) => handleFiltro(setFiltroApto, e.target.value)}
         />
       </div>
 
@@ -205,6 +213,7 @@ export function ListaPropietarios({ propietarios, onActualizar }: ListaPropietar
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[50px] text-center">#</TableHead>
               <TableHead>Nombre</TableHead>
               <TableHead>Cédula</TableHead>
               <TableHead>Torre</TableHead>
@@ -214,116 +223,187 @@ export function ListaPropietarios({ propietarios, onActualizar }: ListaPropietar
             </TableRow>
           </TableHeader>
           <TableBody>
-            {propietariosFiltrados.length === 0 ? (
+            {propietariosPaginados.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-gray-500 py-8">
-                  {filtroApto || filtroCedula || filtroNombre || filtroTorre ? 'No se encontraron resultados' : 'No hay propietarios cargados'}
+                <TableCell colSpan={7} className="text-center text-gray-500 py-8">
+                  {filtroApto || filtroCedula || filtroNombre || filtroTorre
+                    ? 'No se encontraron resultados'
+                    : 'No hay propietarios cargados'}
                 </TableCell>
               </TableRow>
             ) : (
-              propietariosFiltrados.map((prop) => (
-                <TableRow key={prop.id}>
-                  {editandoId === prop.id ? (
-                    <>
-                      <TableCell>
-                        <Input
-                          value={formData.nombreCompleto || ''}
-                          onChange={(e) => setFormData({ ...formData, nombreCompleto: e.target.value })}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          value={formData.cedula || ''}
-                          onChange={(e) => setFormData({ ...formData, cedula: e.target.value })}
-                          maxLength={12}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          value={formData.torreManzana || ''}
-                          onChange={(e) => setFormData({ ...formData, torreManzana: e.target.value })}
-                          placeholder="Torre"
-                          className="w-20"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          value={formData.aptoCasa || ''}
-                          onChange={(e) => setFormData({ ...formData, aptoCasa: e.target.value })}
-                          placeholder="Apto"
-                          className="w-20"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Input
-                          value={formData.coeficiente || 0}
-                          onChange={(e) => setFormData({ ...formData, coeficiente: parseFloat(e.target.value) })}
-                          type="number"
-                          step="0.01"
-                          disabled
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <Button
-                            size="sm"
-                            onClick={guardarEdicion}
-                            disabled={guardando}
-                          >
-                            <Save className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={cancelarEdicion}
-                            disabled={guardando}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </>
-                  ) : (
-                    <>
-                      <TableCell className="font-medium">{prop.nombreCompleto}</TableCell>
-                      <TableCell>{prop.cedula}</TableCell>
-                      <TableCell>
-                        {prop.torreManzana}
-                      </TableCell>
-                      <TableCell>
-                        {prop.aptoCasa}
-                      </TableCell>
-                      <TableCell>{prop.coeficiente}%</TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => iniciarEdicion(prop)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => eliminar(prop.id, prop.nombreCompleto)}
-                          >
-                            <Trash2 className="h-4 w-4 text-red-500" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </>
-                  )}
-                </TableRow>
-              ))
+              propietariosPaginados.map((prop, index) => {
+                const indexGlobal = (paginaActual - 1) * ITEMS_POR_PAGINA + index
+                return (
+                  <TableRow key={prop.id}>
+                    <TableCell className="text-center text-sm text-gray-400 font-mono">
+                      {indexGlobal + 1}
+                    </TableCell>
+                    {editandoId === prop.id ? (
+                      <>
+                        <TableCell>
+                          <Input
+                            value={formData.nombreCompleto || ''}
+                            onChange={(e) => setFormData({ ...formData, nombreCompleto: e.target.value })}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            value={formData.cedula || ''}
+                            onChange={(e) => setFormData({ ...formData, cedula: e.target.value })}
+                            maxLength={12}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            value={formData.torreManzana || ''}
+                            onChange={(e) => setFormData({ ...formData, torreManzana: e.target.value })}
+                            placeholder="Torre"
+                            className="w-20"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            value={formData.aptoCasa || ''}
+                            onChange={(e) => setFormData({ ...formData, aptoCasa: e.target.value })}
+                            placeholder="Apto"
+                            className="w-20"
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Input
+                            value={formData.coeficiente || 0}
+                            onChange={(e) => setFormData({ ...formData, coeficiente: parseFloat(e.target.value) })}
+                            type="number"
+                            step="0.01"
+                            disabled
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            <Button size="sm" onClick={guardarEdicion} disabled={guardando}>
+                              <Save className="h-4 w-4" />
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={cancelarEdicion} disabled={guardando}>
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </>
+                    ) : (
+                      <>
+                        <TableCell className="font-medium">{prop.nombreCompleto}</TableCell>
+                        <TableCell>{prop.cedula}</TableCell>
+                        <TableCell>{prop.torreManzana}</TableCell>
+                        <TableCell>{prop.aptoCasa}</TableCell>
+                        <TableCell>{prop.coeficiente}%</TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            <Button size="sm" variant="ghost" onClick={() => iniciarEdicion(prop)}>
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => eliminar(prop.id, prop.nombreCompleto)}>
+                              <Trash2 className="h-4 w-4 text-red-500" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </>
+                    )}
+                  </TableRow>
+                )
+              })
             )}
           </TableBody>
         </Table>
       </div>
 
-      <p className="text-sm text-gray-600">
-        Mostrando {propietariosFiltrados.length} de {propietarios.length} propietarios
-      </p>
+      {/* Paginador */}
+      {totalPaginas > 1 && (
+        <div className="flex items-center justify-between px-2">
+          <p className="text-sm text-gray-500">
+            Mostrando {(paginaActual - 1) * ITEMS_POR_PAGINA + 1}-
+            {Math.min(paginaActual * ITEMS_POR_PAGINA, propietariosFiltrados.length)} de{' '}
+            {propietariosFiltrados.length} propietarios
+          </p>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPaginaActual(1)}
+              disabled={paginaActual === 1}
+              className="h-8 px-2"
+            >
+              «
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPaginaActual((p) => Math.max(1, p - 1))}
+              disabled={paginaActual === 1}
+              className="h-8 px-3"
+            >
+              ‹
+            </Button>
+
+            {Array.from({ length: totalPaginas }, (_, i) => i + 1)
+              .filter((page) =>
+                page === 1 ||
+                page === totalPaginas ||
+                Math.abs(page - paginaActual) <= 1
+              )
+              .reduce<(number | string)[]>((acc, page, idx, arr) => {
+                if (idx > 0 && page - (arr[idx - 1] as number) > 1) {
+                  acc.push('...')
+                }
+                acc.push(page)
+                return acc
+              }, [])
+              .map((item, idx) =>
+                item === '...' ? (
+                  <span key={`dots-${idx}`} className="px-2 text-gray-400 text-sm">
+                    ...
+                  </span>
+                ) : (
+                  <Button
+                    key={item}
+                    variant={paginaActual === item ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setPaginaActual(item as number)}
+                    className="h-8 w-8 p-0"
+                  >
+                    {item}
+                  </Button>
+                )
+              )}
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPaginaActual((p) => Math.min(totalPaginas, p + 1))}
+              disabled={paginaActual === totalPaginas}
+              className="h-8 px-3"
+            >
+              ›
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPaginaActual(totalPaginas)}
+              disabled={paginaActual === totalPaginas}
+              className="h-8 px-2"
+            >
+              »
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {totalPaginas <= 1 && (
+        <p className="text-sm text-gray-500 px-2">
+          Mostrando {propietariosFiltrados.length} de {propietarios.length} propietarios
+        </p>
+      )}
+
       {Dialog}
     </div>
   )

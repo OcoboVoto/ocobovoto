@@ -1,4 +1,4 @@
-//app/api/votos
+//app/api/votos/route.tsx
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { ApiResponse } from '@/types'

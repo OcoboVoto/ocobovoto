@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Save } from 'lucide-react'
+import { Save, Video } from 'lucide-react'
 import { useConfirmDialog } from '../hooks/useConfirmDialog'
 
 interface FormularioAsambleaProps {
@@ -18,6 +18,7 @@ export function FormularioAsamblea({ conjuntoId, onCreada }: FormularioAsambleaP
   const [quorumRequerido, setQuorumRequerido] = useState('100')
   const [guardando, setGuardando] = useState(false)
   const { confirm, Dialog } = useConfirmDialog()
+  const [linkZoom, setLinkZoom] = useState('')
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -33,6 +34,7 @@ export function FormularioAsamblea({ conjuntoId, onCreada }: FormularioAsambleaP
           fechaHora,
           modalidad,
           quorumRequerido: parseFloat(quorumRequerido),
+          linkZoom: linkZoom.trim() || null,
         }),
       })
 
@@ -132,7 +134,39 @@ export function FormularioAsamblea({ conjuntoId, onCreada }: FormularioAsambleaP
             disabled={true}
           />
         </div>
+        <div>
+          <label className="block text-sm font-medium mb-2 flex items-center gap-2">
+            <Video className="h-4 w-4 text-blue-500" />
+            Link de Zoom
+            <span className="text-xs text-gray-500 font-normal">(opcional)</span>
+          </label>
+          <Input
+            type="url"
+            value={linkZoom}
+            onChange={(e) => setLinkZoom(e.target.value)}
+            placeholder="https://zoom.us/j/123456789"
+            className="font-mono text-sm"
+          />
+          {(modalidad === 'virtual' || modalidad === 'hibrida') && (
+            <p className="text-xs text-blue-600 mt-1">
+              💡 Recomendado para modalidad {modalidad} — se mostrará a los participantes
+            </p>
+          )}
+        </div>
       </div>
+
+      {modalidad === 'hibrida' && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+          <p className="text-sm text-amber-800 font-medium mb-1">
+            🔀 Asamblea Mixta
+          </p>
+          <p className="text-sm text-amber-700">
+            En el registro de cada participante se podrá indicar si asistió de forma
+            <strong> presencial</strong> o <strong>virtual</strong>.
+            Esta información quedará registrada en el reporte final.
+          </p>
+        </div>
+      )}
 
       <Button type="submit" disabled={guardando} className="w-full">
         <Save className="mr-2 h-4 w-4" />

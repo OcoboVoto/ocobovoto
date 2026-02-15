@@ -1,9 +1,9 @@
 'use client'
 
-import { use, useState } from 'react'
+import { use, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { CheckCircle2, AlertCircle, Users, Building, MapPin, Percent } from 'lucide-react'
+import { CheckCircle2, AlertCircle, Users, Building, MapPin, Percent, Monitor } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { useRouter } from 'next/navigation'
 
@@ -29,6 +29,14 @@ interface PropietarioConPoderes {
   tienePoderes: boolean
 }
 
+interface AsambleaInfo {
+  id: string
+  estado: string
+  modalidad: 'presencial' | 'virtual' | 'mixta' | 'hibrida'
+  tipo: string
+  conjunto: { nombre: string }
+}
+
 export default function RegistroPage({
   params,
 }: {
@@ -41,7 +49,88 @@ export default function RegistroPage({
   const [loading, setLoading] = useState(false)
   const [registrado, setRegistrado] = useState(false)
   const [error, setError] = useState('')
+  const [asamblea, setAsamblea] = useState<AsambleaInfo | null>(null)
+  const [cargandoAsamblea, setCargandoAsamblea] = useState(true)
   const router = useRouter()
+
+    // Cargar datos de la asamblea al montar
+    useEffect(() => {
+      const fetchAsamblea = async () => {
+        try {
+          const res = await fetch(`/api/asambleas/${asambleaId}`)
+          const data = await res.json()
+          if (data.success) {
+            setAsamblea(data.data)
+            // Pre-seleccionar modalidad según la de la asamblea
+            if (data.data.modalidad === 'virtual') {
+              setModalidad('virtual')
+            } else {
+              setModalidad('presencial')
+            }
+          }
+        } catch (e) {
+          console.error('Error al cargar asamblea', e)
+        } finally {
+          setCargandoAsamblea(false)
+        }
+      }
+      fetchAsamblea()
+    }, [asambleaId])
+
+  if (cargandoAsamblea) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600" />
+      </div>
+    )
+  }
+
+  if (!asamblea || asamblea.estado === 'finalizada') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center">
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-green-100 rounded-full mb-6">
+            <CheckCircle2 className="w-12 h-12 text-green-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+            Asamblea Finalizada
+          </h2>
+          <p className="text-gray-600">
+            Esta asamblea ya ha concluido. No es posible registrar nuevos participantes
+            ni realizar votaciones.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  if (asamblea.estado === 'borrador') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center">
+          <div className="inline-flex items-center justify-center w-20 h-20 bg-yellow-100 rounded-full mb-6">
+            <AlertCircle className="w-12 h-12 text-yellow-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+            Asamblea no iniciada
+          </h2>
+          <p className="text-gray-600">
+            La asamblea aún no ha comenzado. Vuelve cuando el administrador la active.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
+  const esHibrida = asamblea.modalidad === 'hibrida' || asamblea.modalidad === 'mixta'
+
+  // Modalidad final a enviar al API: en híbrida el usuario elige; si no, es fija
+  const getModalidadFinal = (): 'presencial' | 'virtual' => {
+    if (!esHibrida) {
+      return asamblea.modalidad === 'virtual' ? 'virtual' : 'presencial'
+    }
+    return modalidad
+  }
 
   const buscarPropietario = async () => {
     if (cedula.length < 6) {
@@ -83,7 +172,7 @@ export default function RegistroPage({
           asambleaId,
           cedula,
           nombreCompleto: propietario.nombreCompleto,
-          modalidadAsistencia: modalidad,
+          modalidadAsistencia: getModalidadFinal(),
         }),
       })
 
@@ -329,49 +418,42 @@ export default function RegistroPage({
               </div>
 
               {/* Modalidad */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Modalidad de Asistencia
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    onClick={() => setModalidad('presencial')}
-                    className={`p-4 rounded-lg border-2 transition-colors ${modalidad === 'presencial'
-                        ? 'border-indigo-600 bg-indigo-50'
-                        : 'border-gray-200 hover:border-gray-300'
+ {/* ✅ FIX 2: Selector de modalidad — SOLO visible en asambleas híbridas/mixtas */}
+ {esHibrida && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    ¿Cómo estás participando?
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => setModalidad('presencial')}
+                      className={`p-4 rounded-lg border-2 transition-colors ${
+                        modalidad === 'presencial'
+                          ? 'border-indigo-600 bg-indigo-50'
+                          : 'border-gray-200 hover:border-gray-300'
                       }`}
-                  >
-                    <Building
-                      className={`h-6 w-6 mx-auto mb-2 ${modalidad === 'presencial' ? 'text-indigo-600' : 'text-gray-400'
-                        }`}
-                    />
-                    <p
-                      className={`text-sm font-medium ${modalidad === 'presencial' ? 'text-indigo-900' : 'text-gray-700'
-                        }`}
                     >
-                      Presencial
-                    </p>
-                  </button>
-                  <button
-                    onClick={() => setModalidad('virtual')}
-                    className={`p-4 rounded-lg border-2 transition-colors ${modalidad === 'virtual'
-                        ? 'border-indigo-600 bg-indigo-50'
-                        : 'border-gray-200 hover:border-gray-300'
+                      <Building className={`h-6 w-6 mx-auto mb-2 ${modalidad === 'presencial' ? 'text-indigo-600' : 'text-gray-400'}`} />
+                      <p className={`text-sm font-medium ${modalidad === 'presencial' ? 'text-indigo-900' : 'text-gray-700'}`}>
+                        Presencial
+                      </p>
+                    </button>
+                    <button
+                      onClick={() => setModalidad('virtual')}
+                      className={`p-4 rounded-lg border-2 transition-colors ${
+                        modalidad === 'virtual'
+                          ? 'border-indigo-600 bg-indigo-50'
+                          : 'border-gray-200 hover:border-gray-300'
                       }`}
-                  >
-                    <Users
-                      className={`h-6 w-6 mx-auto mb-2 ${modalidad === 'virtual' ? 'text-indigo-600' : 'text-gray-400'
-                        }`}
-                    />
-                    <p
-                      className={`text-sm font-medium ${modalidad === 'virtual' ? 'text-indigo-900' : 'text-gray-700'
-                        }`}
                     >
-                      Virtual
-                    </p>
-                  </button>
+                      <Monitor className={`h-6 w-6 mx-auto mb-2 ${modalidad === 'virtual' ? 'text-indigo-600' : 'text-gray-400'}`} />
+                      <p className={`text-sm font-medium ${modalidad === 'virtual' ? 'text-indigo-900' : 'text-gray-700'}`}>
+                        Virtual
+                      </p>
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
 
               {/* Botones */}
               <div className="flex gap-3">

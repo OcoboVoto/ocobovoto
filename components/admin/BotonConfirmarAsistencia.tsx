@@ -1,11 +1,13 @@
+//components/admin/bototonConfirmarAsistecia.tsx
 'use client'
 
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { UserCheck, CheckCircle2, Users } from 'lucide-react'
+import { UserCheck, CheckCircle2, Lock } from 'lucide-react'
 import { toast } from 'sonner'
 
-type EstadoConfirmacion = 'never-used' | 'active' | 'closed'
+const MAX_CONFIRMACIONES = 2
+type EstadoConfirmacion = 'never-used' | 'active' | 'closed' | 'agotado'
 
 interface BotonConfirmarAsistenciaProps {
     asambleaId: string
@@ -20,8 +22,7 @@ export function BotonConfirmarAsistencia({ asambleaId, onActualizar, }: BotonCon
     const [totalVotantes, setTotalVotantes] = useState(0)
     const [tiempoRestante, setTiempoRestante] = useState(60)
     const [estado, setEstado] = useState<EstadoConfirmacion>('never-used')
-    const [loading, setLoading] = useState(false)
-
+    const [confirmacionUsada, setConfirmacionUsada] = useState(0)
 
     useEffect(() => {
         cargarEstadoAsamblea()
@@ -34,7 +35,12 @@ export function BotonConfirmarAsistencia({ asambleaId, onActualizar, }: BotonCon
             if (!data.success) return
             const asamblea = data.data
 
-            if (asamblea.confirmacionCerrada) {
+            const usada = asamblea.confirmacionUsada ?? 0
+            setConfirmacionUsada(usada)
+
+            if (usada >= MAX_CONFIRMACIONES && !asamblea.confirmacionActivada) {
+                setEstado('agotado')
+            } else if (asamblea.confirmacionCerrada) {
                 setEstado('closed')
                 setTiempoRestante(0)
             } else if (asamblea.confirmacionActivada) {
@@ -42,7 +48,6 @@ export function BotonConfirmarAsistencia({ asambleaId, onActualizar, }: BotonCon
             } else {
                 setEstado('never-used')
             }
-
             actualizarConteo(asamblea)
         } catch (e) {
             console.error('Error cargando estado de asamblea', e)
@@ -84,8 +89,8 @@ export function BotonConfirmarAsistencia({ asambleaId, onActualizar, }: BotonCon
             const data = await response.json()
 
             if (data.success) {
-                //setEstado('active')
                 await cargarEstadoAsamblea()
+                setTiempoRestante(60)
                 toast.success('Confirmación de asistencia activada. Los votantes recibirán la notificación.')
                 onActualizar?.()
             } else {
@@ -95,7 +100,7 @@ export function BotonConfirmarAsistencia({ asambleaId, onActualizar, }: BotonCon
             toast.error('Error al activar confirmación')
         } finally {
             setActivando(false)
-                }
+        }
     }
 
     const cerrarConfirmacion = async () => {
@@ -135,6 +140,8 @@ export function BotonConfirmarAsistencia({ asambleaId, onActualizar, }: BotonCon
         return `${mins}:${secs.toString().padStart(2, '0')}`
     }
 
+    const usosRestantes = MAX_CONFIRMACIONES - confirmacionUsada
+
     if (estado === 'never-used') {
         return (
             <div className="bg-yellow-50 border-2 border-yellow-400 rounded-lg p-6">
@@ -143,9 +150,14 @@ export function BotonConfirmarAsistencia({ asambleaId, onActualizar, }: BotonCon
                         <UserCheck className="h-6 w-6 text-yellow-700" />
                     </div>
                     <div className="flex-1">
-                        <h3 className="font-bold text-yellow-900 mb-2">
-                            Confirmación de Asistencia
-                        </h3>
+                        <div className="flex items-center justify-between mb-1">
+                            <h3 className="font-bold text-yellow-900 mb-2">
+                                Confirmación de Asistencia
+                            </h3>
+                            <span className="text-xs font-semibold bg-yellow-200 text-yellow-800 px-2 py-1 rounded-full">
+                                {usosRestantes} de {MAX_CONFIRMACIONES} disponibles
+                            </span>
+                        </div>
                         <p className="text-sm text-yellow-800 mb-4">
                             Activa esto a mitad de asamblea para recalcular el quórum solo con quienes siguen presentes.
                             Los votantes deberán confirmar que continúan en la asamblea.
@@ -163,81 +175,97 @@ export function BotonConfirmarAsistencia({ asambleaId, onActualizar, }: BotonCon
             </div>
         )
     }
-    if (estado === 'active') {
-        return (
-            <div className="bg-green-50 border-2 border-green-400 rounded-lg p-6">
-                <div className="flex items-start gap-4">
-                    <div className="p-3 bg-green-100 rounded-lg">
-                        <CheckCircle2 className="h-6 w-6 text-green-700" />
-                    </div>
-                    <div className="flex-1">
-                        <div className="flex justify-between items-start mb-2">
-                            <h3 className="font-bold text-green-900">
-                                Confirmación Activa
-                            </h3>
-                            <div className="text-right">
-                                <p className="text-sm text-gray-600">Tiempo restante:</p>
-                                <p className={`text-2xl font-bold ${tiempoRestante < 60 ? 'text-red-600' : 'text-green-700'
-                                    }`}>
-                                    {formatearTiempo(tiempoRestante)}
-                                </p>
-                            </div>
-                        </div>
-                        <p className="text-sm text-green-800 mb-4">
-                            Los votantes están confirmando su asistencia. El quórum se recalculará automáticamente.
-                        </p>
 
-                        <div className="bg-white rounded-lg p-4 border border-green-200">
-                            <div className="flex items-center justify-between mb-2">
-                                <span className="text-sm text-gray-600">Progreso de confirmación:</span>
-                                <span className="text-sm font-medium text-gray-900">
-                                    {confirmaciones} de {totalVotantes}
-                                </span>
-                            </div>
-                            <div className="w-full bg-gray-200 rounded-full h-3">
-                                <div
-                                    className="bg-green-600 h-3 rounded-full transition-all duration-500"
-                                    style={{ width: `${totalVotantes > 0 ? (confirmaciones / totalVotantes) * 100 : 0}%` }}
-                                />
-                            </div>
-                            <div className="flex items-center gap-2 mt-3 text-sm text-green-700">
-                                <Users className="h-4 w-4" />
-                                <span>
-                                    {totalVotantes - confirmaciones} votantes por confirmar
-                                </span>
-                            </div>
-                        </div>
-                        <Button
-                            onClick={cerrarConfirmacion}
-                            disabled={cerrando}
-                            variant="outline"
-                            className="w-full"
-                        >
-                            {cerrando ? 'Cerrando...' : 'Cerrar Confirmación Manualmente'}
-                        </Button>
-                    </div>
-                </div>
-            </div>
-        )
-    }
 
+  //  Estado: confirmación activa ahora mismo
+  if (estado === 'active') {
     return (
-        <div className="bg-gray-50 border-2 border-gray-300 rounded-lg p-6">
-            <div className="flex items-start gap-4">
-                <div className="p-3 bg-gray-200 rounded-lg">
-                    <CheckCircle2 className="h-6 w-6 text-gray-600" />
-                </div>
-                <div className="flex-1">
-                    <h3 className="font-bold text-gray-900 mb-2">
-                        Confirmación Cerrada
-                    </h3>
-                    <p className="text-sm text-gray-700">
-                        {confirmaciones} de {totalVotantes} votantes confirmaron su asistencia.
-                        El quórum final ha sido calculado.
-                    </p>
-                </div>
+      <div className="bg-green-50 border-2 border-green-500 rounded-lg p-6">
+        <div className="flex items-start gap-4">
+          <div className="p-3 bg-green-100 rounded-lg">
+            <UserCheck className="h-6 w-6 text-green-700 animate-pulse" />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="font-bold text-green-900">
+                Confirmación #{confirmacionUsada} Activa
+              </h3>
+              <span className="text-xs font-semibold bg-green-200 text-green-800 px-2 py-1 rounded-full">
+                {usosRestantes} restante{usosRestantes !== 1 ? 's' : ''}
+              </span>
             </div>
+            <p className="text-2xl font-bold text-green-700 mb-1">
+              {confirmaciones} / {totalVotantes} confirmados
+            </p>
+            <p className="text-sm text-green-700 mb-4">
+              Tiempo restante: <strong>{formatearTiempo(tiempoRestante)}</strong>
+            </p>
+            <Button
+              onClick={cerrarConfirmacion}
+              disabled={cerrando}
+              variant="outline"
+              className="border-green-600 text-green-700 hover:bg-green-100"
+            >
+              <CheckCircle2 className="mr-2 h-4 w-4" />
+              {cerrando ? 'Cerrando...' : 'Cerrar Confirmación Ahora'}
+            </Button>
+          </div>
         </div>
+      </div>
     )
+  }
 
+  //  Estado: confirmación cerrada, aún quedan usos
+  if (estado === 'closed' && usosRestantes > 0) {
+    return (
+      <div className="bg-blue-50 border-2 border-blue-400 rounded-lg p-6">
+        <div className="flex items-start gap-4">
+          <div className="p-3 bg-blue-100 rounded-lg">
+            <CheckCircle2 className="h-6 w-6 text-blue-700" />
+          </div>
+          <div className="flex-1">
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="font-bold text-blue-900">
+                Confirmación #{confirmacionUsada} Cerrada
+              </h3>
+              <span className="text-xs font-semibold bg-blue-200 text-blue-800 px-2 py-1 rounded-full">
+                {usosRestantes} restante{usosRestantes !== 1 ? 's' : ''}
+              </span>
+            </div>
+            <p className="text-sm text-blue-800 mb-4">
+              <strong>{confirmaciones}</strong> de <strong>{totalVotantes}</strong> votantes confirmaron asistencia.
+              Puedes activar <strong>{usosRestantes} confirmación{usosRestantes !== 1 ? 'es más' : ' más'}</strong>.
+            </p>
+            <Button onClick={activarConfirmacion} disabled={activando} className="bg-blue-600 hover:bg-blue-700">
+              <UserCheck className="mr-2 h-4 w-4" />
+              {activando ? 'Activando...' : `Activar Confirmación #${confirmacionUsada + 1}`}
+            </Button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  //  Estado: agotadas las 2 confirmaciones
+  return (
+    <div className="bg-gray-50 border-2 border-gray-300 rounded-lg p-6">
+      <div className="flex items-start gap-4">
+        <div className="p-3 bg-gray-100 rounded-lg">
+          <Lock className="h-6 w-6 text-gray-500" />
+        </div>
+        <div className="flex-1">
+          <div className="flex items-center justify-between mb-1">
+            <h3 className="font-bold text-gray-700">Confirmaciones Agotadas</h3>
+            <span className="text-xs font-semibold bg-gray-200 text-gray-700 px-2 py-1 rounded-full">
+              {MAX_CONFIRMACIONES}/{MAX_CONFIRMACIONES} usadas
+            </span>
+          </div>
+          <p className="text-sm text-gray-600">
+            Se han utilizado las <strong>{MAX_CONFIRMACIONES} confirmaciones</strong> permitidas.
+            Último resultado: <strong>{confirmaciones}</strong> de <strong>{totalVotantes}</strong> confirmaron.
+          </p>
+        </div>
+      </div>
+    </div>
+  )
 }

@@ -105,7 +105,6 @@ export function FormularioProposicion({ asambleaId, onResultado }: FormularioPro
           onChange={(e) => setDescripcion(e.target.value)}
           className="w-full border rounded-lg px-3 py-2 min-h-20"
           placeholder="Detalle de la pregunta..."
-          required
         />
       </div>
 

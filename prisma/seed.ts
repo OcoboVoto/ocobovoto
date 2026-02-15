@@ -12,7 +12,7 @@ async function main() {
      where: { email: 'superadmin@votoasamblea.com' },
      update: {},
      create: {
-       email: 'superadmin@votoasamblea.com',
+       email: 'superadmin@ocovoto.com',
        passwordHash: superAdminPassword,
        nombre: 'Super Administrador',
      },

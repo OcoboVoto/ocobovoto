@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { AlertCircle } from 'lucide-react'
 import Image from 'next/image'
+import { Footer } from '@/components/layouts/Footer'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -155,12 +156,7 @@ export default function LoginPage() {
 
           {/* Footer */}
           <div className="mt-6 text-center">
-            <p className="text-sm text-gray-500">
-              Credenciales de prueba:
-            </p>
-            <p className="text-xs text-gray-400 mt-1">
-              admin@acacias.com / admin123
-            </p>
+            <Footer role='ADMIN' />
           </div>
         </div>
       </div>

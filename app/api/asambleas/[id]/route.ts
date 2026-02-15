@@ -18,8 +18,9 @@ export async function GET(
           select: { nombre: true, coeficienteTotal: true },
         },
         proposiciones: {
+          orderBy: { numeroOrden: 'desc' },
           include: {
-            opciones: true,
+            opciones: { orderBy: { orden: 'asc' } },
           },
         },
         votantes: {

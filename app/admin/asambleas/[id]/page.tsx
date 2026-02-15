@@ -1,11 +1,12 @@
+//app/admin/asamblea/[id]/page.tsx
 'use client'
 
-import { use, useEffect, useState } from 'react'
+import { use, useCallback, useEffect, useState } from 'react'
 import { AdminLayout } from '@/components/layouts/AdminLayout'
 import { GeneradorQR } from '@/components/admin/GeneradorQR'
 import { Button } from '@/components/ui/button'
 import { Toast } from '@/components/ui/toast'
-import { ArrowLeft, Play, Plus, Square } from 'lucide-react'
+import { ArrowLeft, Monitor, Play, Plus, Square } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -15,6 +16,8 @@ import { FormularioProposicion } from '@/components/admin/FormularioPregunta'
 import { BotonConfirmarAsistencia } from '@/components/admin/BotonConfirmarAsistencia'
 import { useConfirmDialog } from '@/components/hooks/useConfirmDialog'
 import { GestionPoderes } from '@/components/admin/GestionPoderes'
+import { supabase } from '@/lib/supabase/createBrowserClient'
+import { useRef } from 'react'
 
 interface Votante {
   id: string
@@ -51,6 +54,28 @@ interface Asamblea {
   }
 }
 
+interface ResultadoData {
+  proposicion: {
+    id: string
+    titulo: string
+    tipoMayoria: string
+    porcentajeRequerido: number
+  }
+  resultados: any[]
+  noVotaron: {
+    coeficiente: number
+    porcentaje: number
+    personas: number
+  }
+  resumen: {
+    totalVotantes: number
+    totalVotos: number
+    coeficienteTotalPresente: number
+    aprobada: boolean
+    opcionGanadora: string | null
+  }
+}
+
 export default function DetalleAsambleaPage({
   params,
 }: {
@@ -63,7 +88,9 @@ export default function DetalleAsambleaPage({
   const [loading, setLoading] = useState(true)
   const [mostrarFormProposicion, setMostrarFormProposicion] = useState(false)
   const { confirm, Dialog } = useConfirmDialog()
+  const [resultadosMap, setResultadosMap] = useState<Record<string, ResultadoData>>({})
 
+  const proposicionesRef = useRef<{ id: string; estado: string }[]>([])
 
   const [toastOpen, setToastOpen] = useState(false)
   const [toastConfig, setToastConfig] = useState({
@@ -75,32 +102,151 @@ export default function DetalleAsambleaPage({
   const fromSuper = searchParams.get('from') === 'super'
   const conjuntoId = searchParams.get('conjuntoId')
 
-  useEffect(() => {
-    fetchAsamblea()
-  }, [id])
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      fetchAsamblea()
-    }, 15000)
+  const fetchResultadosProposicion = useCallback(async (proposicionId: string) => {
+    try {
+      const res = await fetch(`/api/proposiciones/${proposicionId}/resultados`)
+      const data = await res.json()
+      if (data.success) {
+        setResultadosMap((prev) => ({
+          ...prev,
+          [proposicionId]: data.data,
+        }))
+      }
+    } catch (e) {
+      console.error('Error cargando resultados:', e)
+    }
+  }, []) // sin deps → referencia estable para toda la vida del componente
 
-    return () => clearInterval(interval)
-  }, [id])
-
-  const fetchAsamblea = async () => {
+  const fetchAsamblea = useCallback(async () => {
     try {
       const response = await fetch(`/api/asambleas/${id}`)
       const data = await response.json()
-
       if (data.success) {
-        setAsamblea(data.data)
+        const proposiciones: any[] = data.data.proposiciones
+        proposiciones.sort((a: any, b: any) => b.numeroOrden - a.numeroOrden)
+
+        setAsamblea({ ...data.data, proposiciones })  
+        proposicionesRef.current = proposiciones.map(  
+          (p: any) => ({ id: p.id, estado: p.estado })  
+        )
+
+        proposiciones
+          .filter((p) => p.estado === 'activa' || p.estado === 'cerrada')
+          .forEach((p) => fetchResultadosProposicion(p.id))
       }
     } catch (error) {
       console.error('Error al cargar asamblea:', error)
     } finally {
       setLoading(false)
     }
-  }
+  }, [id, fetchResultadosProposicion])
+
+  //Carga inicial
+  useEffect(() => {
+    fetchAsamblea()
+  }, [id])
+
+
+  //RealTime 
+  useEffect(() => {
+    if (!id) return
+
+    let channel: ReturnType<typeof supabase.channel> | null = null
+
+    const timeoutId = setTimeout(() => {
+      channel = supabase
+        .channel(`detalle-asamblea-${id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'votos',
+          },
+          (payload) => {
+            console.log('Realtime payload:', payload)
+
+            const proposicionId =
+              payload.new.proposicionId || payload.new.proposicion_id
+
+            if (proposicionId) {
+              fetchResultadosProposicion(proposicionId)
+            } else {
+              console.warn(
+                '[Realtime] payload.new vacío. Aplica fix_rls_votos.sql en Supabase.'
+              )
+              proposicionesRef.current
+                .filter((p) => p.estado === 'activa' || p.estado === 'cerrada')
+                .forEach((p) => fetchResultadosProposicion(p.id))
+            }
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'votantes',
+          },
+          (payload) => {
+            console.log('[Realtime] Nuevo votante:', payload)
+
+            // Filtrar manualmente por asamblea_id  
+            const asambleaIdPayload =
+              payload.new.asambleaId || payload.new.asamblea_id
+
+            if (!asambleaIdPayload || asambleaIdPayload === id) {
+              console.log('[Realtime] Recargando votantes...')
+              fetchAsamblea()
+            } else {
+              console.log('[Realtime] Votante de otra asamblea, ignorando.', {
+                esperado: id,
+                recibido: asambleaIdPayload,
+              })
+            }
+          }
+        )
+        // Listener para proposiciones (cambios de estado)  
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'proposiciones',
+          },
+          (payload) => {
+            console.log('[Realtime] Cambio en proposiciones:', payload)
+            fetchAsamblea()
+          }
+        )
+        // Listener para confirmaciones de asistencia  
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'confirmaciones_asistencia',
+          },
+          (payload) => {
+            console.log('[Realtime] Cambio en confirmaciones:', payload)
+            fetchAsamblea()
+          }
+        )
+        .subscribe((status) => {
+          console.log(`[Realtime detalle-asamblea-all-${id}] status:`, status)
+        })
+    }, 0)
+
+    return () => {
+      clearTimeout(timeoutId)
+      if (channel) {
+        supabase.removeChannel(channel)
+        channel = null
+      }
+    }
+  }, [id, fetchResultadosProposicion, fetchAsamblea])
+
 
   const handleVolver = () => {
     if (fromSuper && conjuntoId) {
@@ -174,6 +320,13 @@ export default function DetalleAsambleaPage({
     }
   }
 
+  const abrirEnNuevaVentana = () => {
+    if (typeof window === 'undefined') return
+
+    const url = `${window.location.origin}/resultados-vivo/${asamblea?.id}`
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
+
   if (loading) {
     return (
       <AdminLayout>
@@ -219,6 +372,14 @@ export default function DetalleAsambleaPage({
             </div>
 
             <div className="flex gap-2">
+              <Button
+                onClick={abrirEnNuevaVentana}
+                variant="outline"
+                className="border-indigo-200 text-indigo-700 hover:bg-indigo-50 gap-2"
+              >
+                <Monitor className="h-4 w-4" />
+                Modo Presentación
+              </Button>
               {asamblea.estado === 'borrador' && (
                 <Button onClick={() => mostrarConfirmacion('activa')}>
                   <Play className="mr-2 h-4 w-4" />
@@ -232,10 +393,10 @@ export default function DetalleAsambleaPage({
                   Finalizar Asamblea
                 </Button>
               )}
-
             </div>
           </div>
         </div>
+
 
         {/* Grid Principal */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -249,7 +410,6 @@ export default function DetalleAsambleaPage({
           </div>
 
           {/* QR de Votación */}
-
           <div className="lg:col-span-1">
             <GeneradorQR
               asambleaId={asamblea.id}
@@ -257,8 +417,6 @@ export default function DetalleAsambleaPage({
               url={`${window.location.origin}/votar/${id}`}
             />
           </div>
-
-
 
           {/* Columna Derecha: Info */}
           <div className="lg:col-span-1 space-y-6">
@@ -294,6 +452,7 @@ export default function DetalleAsambleaPage({
                   </p>
                 </div>
               </div>
+
               {/* Mostrar Quórum Final si hay confirmación */}
               {asamblea.confirmacionActivada && asamblea.quorumFinal !== null && (
                 <div className="mt-4 pt-4 border-t">
@@ -321,6 +480,7 @@ export default function DetalleAsambleaPage({
               )}
             </div>
           </div>
+
           {/* Info General */}
           <div className="lg:col-span-1 space-y-6">
             <div className="bg-white rounded-lg shadow-sm border p-6">
@@ -358,12 +518,12 @@ export default function DetalleAsambleaPage({
             </div>
           )}
         </div>
+
         {/* Lista de Votantes */}
         <div className="mt-10">
           <ListaVotantes asambleaId={id}
             votantes={asamblea.votantes || []} />
         </div>
-
 
         {/* Gestión de Poderes */}
         {(asamblea.estado === 'activa' || asamblea.estado === 'borrador') && (
@@ -371,19 +531,6 @@ export default function DetalleAsambleaPage({
             <GestionPoderes asambleaId={id} />
           </div>
         )}
-
-        {/* Gestión de Poderes CSV 
-        {(asamblea.estado === 'borrador' || asamblea.estado === 'activa') && (
-          <div className="mt-10">
-            <EditorPoderesCSV
-              asambleaId={id}
-              onExito={() => {
-                // refrescar poderes y quorum
-                fetchAsamblea()
-              }}
-            />
-          </div>
-        )}*/}
 
         {/* SECCIÓN DE PROPOSICIONES */}
         <div className="mt-10">
@@ -437,7 +584,9 @@ export default function DetalleAsambleaPage({
                 {asamblea.proposiciones.map((proposicion) => (
                   <ControlVotacion
                     key={proposicion.id}
+                    resultados={resultadosMap[proposicion.id] ?? null}
                     proposicion={proposicion}
+                    asambleaFinalizada={asamblea.estado === 'finalizada'}
                     onActualizar={fetchAsamblea}
                   />
                 ))}

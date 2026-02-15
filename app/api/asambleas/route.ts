@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { conjuntoId, tipo, fechaHora, modalidad, quorumRequerido } = body
+    const { conjuntoId, tipo, fechaHora, modalidad, quorumRequerido, linkZoom } = body
 
     // Generar código QR único
     const qrCodeData = `ASM-${Date.now()}-${Math.random().toString(36).substring(7)}`
@@ -61,6 +61,7 @@ export async function POST(request: NextRequest) {
         quorumRequerido,
         qrCodeData,
         estado: 'borrador',
+        linkZoom: linkZoom ?? null,
       },
     })
 

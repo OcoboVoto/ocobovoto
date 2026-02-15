@@ -36,10 +36,35 @@ export async function POST(request: NextRequest) {
         success: false,
         error: 'Hay propietarios con errores',
         data: {
-          invalidos: resultado.invalidos,
-          duplicados: resultado.duplicados,
+          invalidos: resultado.invalidos
         },
       }, { status: 400 })
+    }
+
+    // Validar duplicados por unidad (torre+apto) dentro del mismo lote  
+    const unidadesVistas = new Map<string, number>()  
+    const erroresLote: string[] = []
+
+    for (let i = 0; i < resultado.validos.length; i++) {  
+      const prop = resultado.validos[i]  
+      const clave = `${prop.torre_manzana.trim().toLowerCase()}|${prop.apto_casa.trim().toLowerCase()}`  
+  
+      if (unidadesVistas.has(clave)) {  
+        const filaAnterior = unidadesVistas.get(clave)! + 1  
+        erroresLote.push(  
+          `Fila ${i + 1}: La unidad Torre "${prop.torre_manzana}" Apto "${prop.apto_casa}" está duplicada en el archivo (ver fila ${filaAnterior})`  
+        )  
+      } else {  
+        unidadesVistas.set(clave, i)  
+      }  
+    }  
+  
+    if (erroresLote.length > 0) {  
+      return NextResponse.json<ApiResponse>({  
+        success: false,  
+        error: 'Hay unidades duplicadas en el archivo',  
+        data: { errores: erroresLote },  
+      }, { status: 400 })  
     }
 
     const propietariosCreados = []
@@ -49,7 +74,11 @@ export async function POST(request: NextRequest) {
       try {
         const propietario = await prisma.propietario.upsert({
           where: {
-            cedula: prop.cedula,
+            conjuntoId_torreManzana_aptoCasa: {  
+              conjuntoId,  
+              torreManzana: prop.torre_manzana,  
+              aptoCasa: prop.apto_casa,  
+            },
           },
           update: {
             conjuntoId,
