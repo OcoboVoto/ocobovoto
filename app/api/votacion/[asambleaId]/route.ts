@@ -1,4 +1,4 @@
-//app/api/votacion/[asambleaId]/route.tsx
+// app/api/votacion/[asambleaId]/route.tsx
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { ApiResponse } from '@/types'
@@ -18,7 +18,7 @@ export async function GET(
       }, { status: 400 })
     }
 
-    // Verificar que el votante está registrado
+    // UNA SOLA QUERY: Votante + Proposiciones + Votos en un solo round-trip
     const votante = await prisma.votante.findUnique({
       where: {
         asambleaId_cedula: {
@@ -31,7 +31,10 @@ export async function GET(
         cedula: true,
         nombreCompleto: true,
         coeficienteTotal: true,
-        confirmoAsistencia: true,  
+        confirmoAsistencia: true,
+        votos: {
+          select: { proposicionId: true },
+        },
       },
     })
 
@@ -42,29 +45,33 @@ export async function GET(
       }, { status: 403 })
     }
 
-    // Obtener proposiciones activas y sus opciones
+    // Extraer votos y limpiar el objeto votante
+    const proposicionesVotadas = new Set(votante.votos.map(v => v.proposicionId))
+    const { votos: _, ...votanteLimpio } = votante
+
+    // Segunda query: proposiciones activas (inevitable, distinta tabla raíz)
     const proposiciones = await prisma.proposicion.findMany({
       where: {
         asambleaId,
         estado: 'activa',
       },
-      include: {
+      select: {
+        id: true,
+        numeroOrden: true,
+        titulo: true,
+        descripcion: true,
+        tipoPregunta: true,
         opciones: {
+          select: {
+            id: true,
+            texto: true,
+            codigo: true,
+          },
           orderBy: { orden: 'asc' },
         },
       },
       orderBy: { numeroOrden: 'asc' },
     })
-
-    // Verificar cuáles ya votó
-    const votos = await prisma.voto.findMany({
-      where: {
-        votanteId: votante.id,
-      },
-      select: { proposicionId: true },
-    })
-
-    const proposicionesVotadas = new Set(votos.map(v => v.proposicionId))
 
     const proposicionesConEstado = proposiciones.map(prop => ({
       ...prop,
@@ -74,7 +81,7 @@ export async function GET(
     return NextResponse.json<ApiResponse>({
       success: true,
       data: {
-        votante,
+        votante: votanteLimpio,
         proposiciones: proposicionesConEstado,
       },
     })
@@ -85,5 +92,5 @@ export async function GET(
       success: false,
       error: 'Error interno',
     }, { status: 500 })
-  }
+    }
 }
