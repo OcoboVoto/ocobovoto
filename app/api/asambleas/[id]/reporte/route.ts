@@ -31,6 +31,23 @@ export async function GET(
           },
           orderBy: { numeroOrden: 'asc' },
         },
+        // ─── Poderes otorgados en esta asamblea ───────────────────────
+        poderes: {
+          where: { activo: true },
+          include: {
+            propietarioOtorgante: {
+              select: {
+                id: true,
+                nombreCompleto: true,
+                cedula: true,
+                torreManzana: true,
+                aptoCasa: true,
+                coeficiente: true,
+              },
+            },
+          },
+          orderBy: { fechaRegistro: 'asc' },
+        },
       },
     })
 
@@ -78,7 +95,9 @@ export async function GET(
             texto: opcion.texto,
             codigo: opcion.codigo,
             coeficiente: coeficienteOpcion,
-            porcentaje: (coeficienteOpcion / coeficienteTotalPresente) * 100,
+            porcentaje: coeficienteTotalPresente > 0
+              ? (coeficienteOpcion / coeficienteTotalPresente) * 100
+              : 0,
             personas: votosOpcion.length,
           }
         })
@@ -103,7 +122,9 @@ export async function GET(
           opciones: resultadosOpciones,
           noVotaron: {
             coeficiente: coeficienteNoVotado,
-            porcentaje: (coeficienteNoVotado / coeficienteTotalPresente) * 100,
+            porcentaje: coeficienteTotalPresente > 0
+              ? (coeficienteNoVotado / coeficienteTotalPresente) * 100
+              : 0,
             personas: totalVotantes - totalVotos,
           },
           aprobada,
@@ -111,6 +132,23 @@ export async function GET(
         }
       })
     )
+
+    // Formatear poderes para la respuesta
+    const poderesFormateados = asamblea.poderes.map(p => ({
+      id: p.id,
+      otorgante: {
+        nombreCompleto: p.propietarioOtorgante.nombreCompleto,
+        cedula: p.propietarioOtorgante.cedula,
+        torreManzana: p.propietarioOtorgante.torreManzana,
+        aptoCasa: p.propietarioOtorgante.aptoCasa,
+        coeficiente: Number(p.propietarioOtorgante.coeficiente),
+      },
+      apoderado: {
+        nombreCompleto: p.nombreApoderado,
+        cedula: p.cedulaApoderado,
+      },
+      fechaRegistro: p.fechaRegistro,
+    }))
 
     return NextResponse.json<ApiResponse>({
       success: true,
@@ -124,6 +162,7 @@ export async function GET(
           quorumRequerido: Number(asamblea.quorumRequerido),
           quorumInicial: Number(asamblea.quorumInicial),
           quorumFinal: asamblea.quorumFinal ? Number(asamblea.quorumFinal) : null,
+          confirmacionActivada: asamblea.confirmacionActivada,
         },
         conjunto: {
           nombre: asamblea.conjunto.nombre,
@@ -141,11 +180,13 @@ export async function GET(
           aptoCasa: a.aptoCasa,
         })),
         proposiciones: resultadosProposiciones,
+        poderes: poderesFormateados,
         resumen: {
           totalPropietarios: todosPropietarios.length,
           totalAsistentes: asistentes.length,
           totalNoAsistentes: noAsistentes.length,
           totalProposiciones: asamblea.proposiciones.length,
+          totalPoderes: poderesFormateados.length,
         },
       },
     })
