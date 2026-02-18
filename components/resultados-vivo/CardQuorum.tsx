@@ -4,20 +4,27 @@
 import { Users, CheckCircle, Lock } from 'lucide-react'
 import { GraficoTorta } from './GraficoTorta'
 import { AnimatedNumber } from './AnimatedNumber'
-import { useEffect, useRef, useState } from 'react'
 
 interface QuorumData {
   inicial: {
     porcentaje: number
     coeficiente: number
     votantes: number
-  }
+  },
+  cierre: {
+    porcentaje: number
+    coeficiente: number
+    votantes: number
+  } | null,
   final: {
     porcentaje: number
     coeficiente: number
     votantes: number
   } | null
   confirmacionActivada: boolean
+  registrosCerrados: boolean
+  quorumAlCierreRegistros: number | null
+  fechaCierreRegistros: string | null
 }
 
 interface CardQuorumProps {
@@ -97,95 +104,119 @@ function PanelQuorum({
 }
 
 export function CardQuorum({ quorum }: CardQuorumProps) {
-  const { inicial, final, confirmacionActivada } = quorum
+  const { inicial, final, confirmacionActivada, registrosCerrados, quorumAlCierreRegistros, fechaCierreRegistros } = quorum
   const hayFinal = final !== null
 
+  const mostrarQ1 = registrosCerrados && quorumAlCierreRegistros !== null
 
-  const mostrarSegundaGrafica = confirmacionActivada || hayFinal 
+  const mostrarSegundaGrafica = confirmacionActivada || hayFinal
   // En curso = confirmación activa pero aún no hay datos finales cerrados
   const estaEnCurso = confirmacionActivada
 
   // Definitivo = hay datos finales Y la confirmación ya NO está activa (fue cerrada)  
   const esDefinitivo = hayFinal && !confirmacionActivada
-  
+
   // Datos para la gráfica derecha: si hay final usa final, si no usa inicial (en espera)
   const datosActual = final ?? inicial
 
 
-  return (  
-    <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-8">  
-  
-      {/* Encabezado */}  
-      <div className="flex items-center justify-between mb-8">  
-        <h2 className="text-2xl font-bold flex items-center gap-3 text-gray-800">  
-          <Users className="h-7 w-7 text-blue-600" />  
-          Quórum Actual  
-        </h2>  
-        {mostrarSegundaGrafica && (  
-          <div className={`flex items-center gap-2 text-sm font-medium px-3 py-1 rounded-full border ${  
-            esDefinitivo  
-              ? 'text-blue-600 bg-blue-50 border-blue-200'  
-              : 'text-green-600 bg-green-50 border-green-200'  
-          }`}>  
-            <CheckCircle className="h-4 w-4" />  
-            {esDefinitivo ? 'Confirmación Completada' : 'Confirmación Activada'}  
-          </div>  
-        )}  
-      </div>  
-  
-      <div className={mostrarSegundaGrafica ? 'grid md:grid-cols-2 gap-10 items-start' : 'max-w-sm mx-auto'}>  
-  
-        {/* IZQUIERDA — Quórum Inicial */}  
-        <PanelQuorum  
-          titulo="Quórum Inicial"  
-          subtitulo="Todos los votantes registrados"  
-          icono={<Users className="h-4 w-4 text-blue-500" />}  
-          porcentaje={inicial.porcentaje}  
-          coeficiente={inicial.coeficiente}  
-          votantes={inicial.votantes}  
-          labelVotantes="Registrados"  
-        />  
-  
-        {/* DERECHA — Quórum de confirmación */}  
-        {mostrarSegundaGrafica && (  
-          <PanelQuorum  
-            titulo={esDefinitivo ? 'Quórum Confirmado' : 'Quórum en Curso'}  
-            subtitulo={  
-              esDefinitivo  
-                ? 'Solo quienes confirmaron asistencia'  
-                : 'Esperando confirmaciones...'  
-            }  
-            icono={  
-              esDefinitivo  
-                ? <CheckCircle className="h-4 w-4 text-green-500" />  
-                : <Lock className="h-4 w-4 text-gray-400" />  
-            }  
-            badge={  
-              estaEnCurso ? (  
-                <span className="flex items-center gap-1.5 text-xs font-semibold text-green-600 bg-green-50 px-2 py-1 rounded-full border border-green-200 flex-shrink-0">  
-                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse inline-block" />  
-                  Vivo  
-                </span>  
-              ) : (  
-                <span className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded-full border border-blue-200 flex-shrink-0">  
-                  <CheckCircle className="h-3 w-3" />  
-                  Definitivo  
-                </span>  
-              )  
-            }  
-            porcentaje={datosActual.porcentaje}  
-            coeficiente={datosActual.coeficiente}  
-            votantes={datosActual.votantes}  
-            labelVotantes={esDefinitivo ? 'Confirmados' : 'Registrados'}  
-          />  
-        )}  
-      </div>  
-  
-      {!mostrarSegundaGrafica && (  
-        <p className="text-center text-sm text-gray-400 mt-8">  
-          El quórum confirmado aparecerá aquí cuando el administrador active la confirmación de asistencia  
-        </p>  
-      )}  
-    </div>  
-  )  
+  return (
+    <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-8">
+
+      {/* Encabezado */}
+      <div className="flex items-center justify-between mb-8">
+        <h2 className="text-2xl font-bold flex items-center gap-3 text-gray-800">
+          <Users className="h-7 w-7 text-blue-600" />
+          Quórum Actual
+        </h2>
+        {mostrarSegundaGrafica && (
+          <div className={`flex items-center gap-2 text-sm font-medium px-3 py-1 rounded-full border ${esDefinitivo
+              ? 'text-blue-600 bg-blue-50 border-blue-200'
+              : 'text-green-600 bg-green-50 border-green-200'
+            }`}>
+            <CheckCircle className="h-4 w-4" />
+            {esDefinitivo ? 'Confirmación Completada' : 'Confirmación Activada'}
+          </div>
+        )}
+      </div>
+
+      <div className={mostrarQ1 && mostrarSegundaGrafica ? 'grid md:grid-cols-3 gap-10 items-start' :
+        mostrarQ1 || mostrarSegundaGrafica ? 'grid md:grid-cols-2 gap-10 items-start' : 'max-w-sm mx-auto'}
+      >
+        {/* Q1 — Cierre de Registros */}
+        {mostrarQ1 && (
+          <PanelQuorum
+            titulo="Cierre de Registros"
+            subtitulo={
+              fechaCierreRegistros ? `Capturado ${new Date(fechaCierreRegistros).toLocaleTimeString('es-CO', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}`: 'Registro cerrado'
+            }
+            icono={<Lock className="h-4 w-4 text-amber-600" />}
+            badge={
+              <span className="text-xs font-semibold text-amber-600 bg-amber-50 px-2 py-1 rounded-full border border-amber-200">
+                Formal
+              </span>
+            }
+            porcentaje={quorum.cierre?.porcentaje ?? 0}
+            coeficiente={quorumAlCierreRegistros ?? 0}
+            votantes={quorum.cierre?.votantes ?? 0}
+            labelVotantes="Propietarios al cierre"
+          />
+        )}
+
+        {/* Quórum Inicial */}
+        <PanelQuorum
+          titulo="Quórum Inicial"
+          subtitulo="Todos los votantes registrados"
+          icono={<Users className="h-4 w-4 text-blue-500" />}
+          porcentaje={inicial.porcentaje}
+          coeficiente={inicial.coeficiente}
+          votantes={inicial.votantes}
+          labelVotantes="Registrados"
+        />
+
+        {/* DERECHA — Quórum de confirmación */}
+        {mostrarSegundaGrafica && (
+          <PanelQuorum
+            titulo={esDefinitivo ? 'Quórum Confirmado' : 'Quórum en Curso'}
+            subtitulo={
+              esDefinitivo
+                ? 'Solo quienes confirmaron asistencia'
+                : 'Esperando confirmaciones...'
+            }
+            icono={
+              esDefinitivo
+                ? <CheckCircle className="h-4 w-4 text-green-500" />
+                : <Lock className="h-4 w-4 text-gray-400" />
+            }
+            badge={
+              estaEnCurso ? (
+                <span className="flex items-center gap-1.5 text-xs font-semibold text-green-600 bg-green-50 px-2 py-1 rounded-full border border-green-200 flex-shrink-0">
+                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse inline-block" />
+                  Vivo
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 bg-blue-50 px-2 py-1 rounded-full border border-blue-200 flex-shrink-0">
+                  <CheckCircle className="h-3 w-3" />
+                  Definitivo
+                </span>
+              )
+            }
+            porcentaje={datosActual.porcentaje}
+            coeficiente={datosActual.coeficiente}
+            votantes={datosActual.votantes}
+            labelVotantes={esDefinitivo ? 'Confirmados' : 'Registrados'}
+          />
+        )}
+      </div>
+
+      {!mostrarSegundaGrafica && (
+        <p className="text-center text-sm text-gray-400 mt-8">
+          El quórum confirmado aparecerá aquí cuando el administrador active la confirmación de asistencia
+        </p>
+      )}
+    </div>
+  )
 }

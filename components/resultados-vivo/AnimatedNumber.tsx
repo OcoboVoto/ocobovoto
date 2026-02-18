@@ -13,7 +13,8 @@ export function AnimatedNumber({
   duration = 800,
   decimals = 1,
 }: AnimatedNumberProps) {
-  const [displayValue, setDisplayValue] = useState(value)
+  const safeValue = typeof value === 'number' && !isNaN(value) ? value : 0
+  const [displayValue, setDisplayValue] = useState(safeValue)
 
   useEffect(() => {
     let start = displayValue

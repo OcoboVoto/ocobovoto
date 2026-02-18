@@ -26,7 +26,15 @@ export interface ResultadosVivo {
             coeficiente: number
             votantes: number
         } | null
+        cierre: {
+            porcentaje: number
+            coeficiente: number
+            votantes: number
+          } | null
         confirmacionActivada: boolean
+        registrosCerrados: boolean
+        quorumAlCierreRegistros: number | null
+        fechaCierreRegistros: string | null
     }
     proposiciones: Array<{
         id: string
@@ -117,6 +125,15 @@ export function useResultadosTiempoReal(asambleaId: string) {
                 schema: 'public',
                 table: 'proposiciones',
             }, cargarDatos)
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'asambleas',
+                //filter: `id=eq.${asambleaId}`,
+            }, () => {
+                console.log("Cambio en asamblea")
+                cargarDatos()
+            })
             .subscribe((status) => {
                 console.log("Realtime status:", status)
             })

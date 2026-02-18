@@ -73,7 +73,7 @@ export async function POST(
 
     const usosRestantes = MAX_CONFIRMACIONES - asambleaActualizada.confirmacionUsada
 
-    // ✅ BROADCAST: Notificar a todos los votantes conectados
+    //BROADCAST: Notificar a todos los votantes conectados
     await supabase.channel(`asamblea-${id}`).send({
       type: 'broadcast',
       event: 'confirmacion',

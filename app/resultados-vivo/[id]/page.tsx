@@ -7,7 +7,7 @@ import { Loader2, RefreshCw, TrendingUp, AlertCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useResultadosTiempoReal } from '@/components/hooks/use-resultados-tiempo-real'
 import { useParams } from 'next/navigation'
-import { motion, AnimatePresence } from 'framer-motion'
+import { AnimatePresence } from 'framer-motion'
 
 export default function ResultadosVivoPage() {
     const params = useParams()

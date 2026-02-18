@@ -1,9 +1,10 @@
+//app/votar/[asambleaId]//page.tsx
 'use client'
 
 import { use, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { CheckCircle2, AlertCircle, Vote, LogOut, UserCheck } from 'lucide-react'
+import { CheckCircle2, AlertCircle, Vote, LogOut, UserCheck, Video, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase/createBrowserClient'
 
@@ -44,8 +45,10 @@ export default function VotacionPage({
     const [votando, setVotando] = useState<string | null>(null)
     const [mostrarAlertaConfirmacion, setMostrarAlertaConfirmacion] = useState(false)
     const [confirmando, setConfirmando] = useState(false)
+    const [modalidadAsamblea, setModalidadAsamblea] = useState<string | null>(null)
+    const [linkZoom, setLinkZoom] = useState<string | null>(null)
 
-    // ── Helpers ──────────────────────────────────────────────
+    //Helpers 
     const refrescarProposiciones = async (cedulaValue: string) => {
         try {
             const response = await fetch(`/api/votacion/${asambleaId}?cedula=${cedulaValue}`)
@@ -77,7 +80,8 @@ export default function VotacionPage({
                 setVotante(data.data.votante)
                 setProposiciones(data.data.proposiciones)
                 setAutenticado(true)
-
+                setModalidadAsamblea(data.data.modalidad ?? null)
+                setLinkZoom(data.data.linkZoom ?? null)
                 // Guardar cédula en sessionStorage para no pedirla de nuevo
                 sessionStorage.setItem('cedula_votante', cedulaValue)
             } else {
@@ -132,6 +136,8 @@ export default function VotacionPage({
         setCedula('')
         setVotante(null)
         setProposiciones([])
+        setModalidadAsamblea(null)
+        setLinkZoom(null)
     }
 
     const confirmarAsistencia = async () => {
@@ -167,7 +173,7 @@ export default function VotacionPage({
         }
     }
 
-    // ── Auto-autenticar ─────────────────────────────────────
+    //Auto-autenticar 
     useEffect(() => {
         const restaurarSesion = async () => {
             const cedulaGuardada = sessionStorage.getItem('cedula_votante')
@@ -179,7 +185,7 @@ export default function VotacionPage({
         restaurarSesion()
     }, [asambleaId])
 
-// ── REALTIME: Canal único — SIN polling ─────────────────
+//  REALTIME: Canal único — SIN polling 
 useEffect(() => {
     if (!autenticado || !cedula || !votante) return
 
@@ -198,7 +204,7 @@ useEffect(() => {
             async (payload) => {
                 const newData = payload.new as any
                 if (newData?.asamblea_id && newData.asamblea_id !== asambleaId) return
-               // console.log('[Realtime] ✅ Proposición:', payload.eventType)
+               // console.log('[Realtime] Proposición:', payload.eventType)
                 await refrescarProposiciones(cedula)
             }
         )
@@ -212,7 +218,7 @@ useEffect(() => {
             (payload) => {
                 const newData = payload.new as any
                 if (newData?.votante_id && newData.votante_id !== votante.id) return
-               // console.log('[Realtime] ✅ Voto registrado:', newData?.proposicion_id)
+               // console.log('[Realtime] Voto registrado:', newData?.proposicion_id)
                 const proposicionId = newData?.proposicion_id
                 if (proposicionId) {
                     setProposiciones(props =>
@@ -231,7 +237,7 @@ useEffect(() => {
     const channelBroadcast = supabase
         .channel(`asamblea-${asambleaId}`)
         .on('broadcast', { event: 'confirmacion' }, (payload) => {
-           // console.log('[Realtime] ✅ Broadcast confirmación:', payload.payload)
+           // console.log('[Realtime] Broadcast confirmación:', payload.payload)
 
             const data = payload.payload
 
@@ -274,7 +280,7 @@ useEffect(() => {
     }
 }, [autenticado, asambleaId, cedula, votante?.id])
 
-    // ── RENDER ──────────────────────────────────────────────
+    // RENDER 
 
     if (inicializando) {
         return (
@@ -340,6 +346,10 @@ useEffect(() => {
         )
     }
 
+       // condición para mostrar banner de Zoom 
+       const esVirtualOHibrida = modalidadAsamblea === 'virtual' || modalidadAsamblea === 'hibrida'
+       const mostrarZoom = esVirtualOHibrida && linkZoom
+
     // Pantalla de Votación
     return (
         <div className="min-h-screen bg-gradient-to-br from-purple-50 to-indigo-100">
@@ -362,6 +372,38 @@ useEffect(() => {
                     </div>
                 </div>
             </header>
+
+            {/*Banner de Zoom  */}
+            {mostrarZoom && (
+                <div className="bg-blue-600 border-b-4 border-blue-700">
+                    <div className="max-w-4xl mx-auto px-4 py-3">
+                        <div className="flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                                <div className="flex-shrink-0 bg-white bg-opacity-20 rounded-full p-2">
+                                    <Video className="h-5 w-5 text-red" />
+                                </div>
+                                <div>
+                                    <p className="font-semibold text-white text-sm">
+                                        Asamblea {modalidadAsamblea === 'hibrida' ? 'Híbrida' : 'Virtual'}
+                                    </p>
+                                    <p className="text-blue-100 text-xs">
+                                        Únete a la sesión en línea para participar
+                                    </p>
+                                </div>
+                            </div>
+                            <a
+                                href={linkZoom!}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex-shrink-0 flex items-center gap-2 bg-white text-blue-700 hover:bg-blue-50 transition-colors font-semibold text-sm px-4 py-2 rounded-lg"
+                            >
+                                Unirse a Zoom
+                                <ExternalLink className="h-4 w-4" />
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Alerta de Confirmación */}
             {mostrarAlertaConfirmacion && (

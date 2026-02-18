@@ -92,7 +92,7 @@ export async function PATCH(
       data: { estado },  
     })  
   
-    // ✅ Broadcast del cambio de estado  
+    // Broadcast del cambio de estado  
     await supabase.channel(`asamblea-${id}`).send({  
       type: 'broadcast',  
       event: 'asamblea-update',  

@@ -164,12 +164,20 @@ export async function GET(
             coeficiente: coeficienteInicial,
             votantes: votantesIniciales,
           },
+          cierre: asamblea.registrosCerrados
+          ? {
+              porcentaje: Number(asamblea.porcentajeCierre),
+              coeficiente: Number(asamblea.coeficienteCierre),
+              votantes: asamblea.votantesCierre,
+            } : null,
           final: quorumFinal !== null ? {
             porcentaje: quorumFinal,
             coeficiente: coeficienteFinal,
             votantes: votantesFinales,
           } : null,
           confirmacionActivada: asamblea.confirmacionActivada,
+          registrosCerrados: asamblea.registrosCerrados,
+          fechaCierreRegistros: asamblea.fechaCierreRegistros,
         },
         proposiciones: resultadosProposiciones,
       },

@@ -18,6 +18,7 @@ import { useConfirmDialog } from '@/components/hooks/useConfirmDialog'
 import { GestionPoderes } from '@/components/admin/GestionPoderes'
 import { supabase } from '@/lib/supabase/createBrowserClient'
 import { useRef } from 'react'
+import { BotonCerrarRegistros } from '@/components/admin/BotonCerrarRegistro'
 
 interface Votante {
   id: string
@@ -48,6 +49,9 @@ interface Asamblea {
   votantes?: Votante[]
   confirmacionActivada: boolean
   confirmacionCerrada: boolean
+  registrosCerrados: boolean
+  quorumAlCierreRegistros: number | null
+  fechaCierreRegistros: string | null
   _count: {
     votantes: number
     registros: number
@@ -116,7 +120,7 @@ export default function DetalleAsambleaPage({
     } catch (e) {
       console.error('Error cargando resultados:', e)
     }
-  }, []) // sin deps → referencia estable para toda la vida del componente
+  }, [])
 
   const fetchAsamblea = useCallback(async () => {
     try {
@@ -156,7 +160,7 @@ export default function DetalleAsambleaPage({
     let channelBroadcast: ReturnType<typeof supabase.channel> | null = null
 
     const timeoutId = setTimeout(() => {
-      // Canal 1: postgres_changes (tablas que SÍ funcionan)  
+      // Canal 1: postgres_changes 
       channelDB = supabase
         .channel(`detalle-asamblea-db-${id}`)
         .on(
@@ -180,12 +184,12 @@ export default function DetalleAsambleaPage({
           'postgres_changes',
           { event: 'INSERT', schema: 'public', table: 'votantes' },
           (payload) => {
-           // console.log('[Realtime] Nuevo votante:', payload)
+            // console.log('[Realtime] Nuevo votante:', payload)
             const asambleaIdPayload =
               payload.new.asambleaId || payload.new.asamblea_id
 
             if (!asambleaIdPayload || asambleaIdPayload === id) {
-             // console.log('[Realtime] Recargando votantes...')
+              // console.log('[Realtime] Recargando votantes...')
               fetchAsamblea()
             }
           }
@@ -207,19 +211,19 @@ export default function DetalleAsambleaPage({
           }
         )
         .subscribe((status) => {
-         // console.log(`[Realtime] Canal DB:`, status)
+          // console.log(`[Realtime] Canal DB:`, status)
         })
 
       // Canal 2: BROADCAST para cambios en asambleas (evita el 401)  
       channelBroadcast = supabase
         .channel(`asamblea-${id}`)
         .on('broadcast', { event: 'asamblea-update' }, (payload) => {
-          //console.log('[Realtime] ✅ Broadcast asamblea-update:', payload.payload)
+          //console.log('[Realtime] Broadcast asamblea-update:', payload.payload)
           // Recargar toda la asamblea para reflejar cambios  
           fetchAsamblea()
         })
         .on('broadcast', { event: 'confirmacion' }, (payload) => {
-          //console.log('[Realtime] ✅ Broadcast confirmacion:', payload.payload)
+          //console.log('[Realtime] broadcast confirmacion:', payload.payload)
           fetchAsamblea()
         })
         .subscribe((status) => {
@@ -435,10 +439,42 @@ export default function DetalleAsambleaPage({
                     ? 'text-green-600'
                     : 'text-orange-600'
                     }`}>
-                    {asamblea.quorumInicial.toFixed(1)}%
+                    {asamblea.quorumInicial.toFixed(2)}%
                   </p>
                 </div>
               </div>
+
+              {/*tarjeta quórum al cierre de registros*/}
+              {asamblea.registrosCerrados && asamblea.quorumAlCierreRegistros !== null && (
+                <div className="mt-4 pt-4 border-t">
+                  <div className="bg-amber-50 rounded-lg p-4">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <p className="text-sm text-amber-700 mb-1">Quórum al Cierre de Registro</p>
+                        <p className={`text-3xl font-bold ${Number(asamblea.quorumAlCierreRegistros) >= asamblea.quorumRequerido
+                          ? 'text-green-600'
+                          : 'text-red-600'
+                          }`}>
+                          {Number(asamblea.quorumAlCierreRegistros).toFixed(2)}%
+                        </p>
+                        {asamblea.fechaCierreRegistros && (
+                          <p className="text-xs text-amber-600 mt-1">
+                            Capturado a las{' '}
+                            {format(new Date(asamblea.fechaCierreRegistros), "HH:mm 'del' d MMM", { locale: es })}
+                          </p>
+                        )}
+                      </div>
+                      {Number(asamblea.quorumAlCierreRegistros) < asamblea.quorumRequerido && (
+                        <div className="text-right">
+                          <span className="px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm font-medium">
+                            ⚠️ Insuficiente
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Mostrar Quórum Final si hay confirmación */}
               {asamblea.confirmacionActivada && asamblea.quorumFinal !== null && (
@@ -494,10 +530,30 @@ export default function DetalleAsambleaPage({
           </div>
         </div>
 
-        {/* Confirmación de Asistencia */}
+        {/* Confirmación de Asistencia - Cierre Registro */}
         <div className="mt-12">
           {asamblea.estado === 'activa' && (
             <div className="mb-6">
+              <div className="mb-4">
+                <BotonCerrarRegistros
+                  asambleaId={id}
+                  registrosCerrados={asamblea.registrosCerrados}
+                  quorumAlCierre={asamblea.quorumAlCierreRegistros}
+                  fechaCierre={asamblea.fechaCierreRegistros}
+                  onCerrar={(snapshot) => {
+                    setAsamblea(prev =>
+                      prev
+                        ? {
+                            ...prev,
+                            registrosCerrados: true,
+                            quorumAlCierreRegistros: snapshot.quorum,
+                            fechaCierreRegistros: snapshot.fecha,
+                          }
+                        : prev
+                    )
+                  }}
+                />
+              </div>
               <BotonConfirmarAsistencia
                 asambleaId={id}
                 onActualizar={fetchAsamblea}

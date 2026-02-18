@@ -45,6 +45,15 @@ export async function GET(
         error: 'No estás registrado en esta asamblea',
       }, { status: 403 })
     }
+    
+    // obtener modalidad y linkZoom de la asamblea 
+    const asamblea = await prisma.asamblea.findUnique({
+      where: { id: asambleaId },
+      select: {
+        modalidad: true,
+        linkZoom: true,
+      },
+    })
 
     // Extraer votos y limpiar el objeto votante
     const proposicionesVotadas = new Set(votante.votos.map(v => v.proposicionId))
@@ -89,6 +98,8 @@ export async function GET(
       data: {
         votante: votanteResponse,
         proposiciones: proposicionesConEstado,
+        modalidad: asamblea?.modalidad ?? null,
+        linkZoom: asamblea?.linkZoom ?? null
       },
     })
 

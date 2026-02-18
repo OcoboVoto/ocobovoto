@@ -77,7 +77,7 @@ export function SelectorModalidadAsistencia({
   )
 }
 
-// ─── Helper para obtener la modalidad automática ────────────────────────────
+//  Helper para obtener la modalidad automática 
 // Usar esta función en la página de registro para determinar qué modalidad
 // enviar al API sin necesidad de que el usuario elija en presencial/virtual pura.
 export function getModalidadAsistencia(

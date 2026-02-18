@@ -17,7 +17,7 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 
-// ─── Paleta de colores ────────────────────────────────────────────────────────
+//  Paleta de colores 
 const OPTION_COLORS = [
   '#6366f1', // indigo
   '#22c55e', // green
@@ -30,7 +30,7 @@ const OPTION_COLORS = [
 ]
 const NO_VOTARON_COLOR = '#fb923c'  // naranja
 
-// ─── Tipos ────────────────────────────────────────────────────────────────────
+//  Tipos 
 interface Reporte {
   asamblea: {
     id: string
@@ -42,6 +42,10 @@ interface Reporte {
     quorumInicial: number
     quorumFinal: number | null
     confirmacionActivada: boolean
+    //  Cierre de registros 
+    registrosCerrados: boolean
+    quorumAlCierreRegistros: number | null
+    fechaCierreRegistros: string | null
   }
   conjunto: { nombre: string; nit: string }
   asistentes: { nombreCompleto: string; torreManzana: string; aptoCasa: string; coeficiente: number }[]
@@ -62,7 +66,7 @@ interface Reporte {
   }
 }
 
-// ─── Tooltip recharts ─────────────────────────────────────────────────────────
+//  Tooltip recharts 
 const CustomTooltip = ({ active, payload }: any) => {
   if (active && payload?.length) {
     const e = payload[0]
@@ -81,7 +85,7 @@ const CustomTooltip = ({ active, payload }: any) => {
   return null
 }
 
-// ─── SVG Pie estático (funciona en impresión) ─────────────────────────────────
+//  SVG Pie estático (funciona en impresión) 
 interface SvgSlice { name: string; value: number; color: string; personas?: number }
 
 function SvgPieChart({ data, size = 180 }: { data: SvgSlice[]; size?: number }) {
@@ -134,7 +138,7 @@ function SvgPieChart({ data, size = 180 }: { data: SvgSlice[]; size?: number }) 
   )
 }
 
-// ─── Leyenda para SVG ─────────────────────────────────────────────────────────
+//  Leyenda para SVG 
 function SvgLegend({ data }: { data: SvgSlice[] }) {
   return (
     <div className="space-y-1.5 text-xs">
@@ -149,7 +153,7 @@ function SvgLegend({ data }: { data: SvgSlice[] }) {
   )
 }
 
-// ─── Gráfica de proposición (screen) ─────────────────────────────────────────
+//  Gráfica de proposición (screen) 
 function ProposicionScreenChart({ prop }: { prop: any }) {
   const data = [
     ...prop.opciones.map((opc: any, i: number) => ({
@@ -192,7 +196,7 @@ function ProposicionScreenChart({ prop }: { prop: any }) {
   )
 }
 
-// ─── Gráfica de quórum (screen) ──────────────────────────────────────────────
+//  Gráfica de quórum (screen) 
 function QuorumScreenChart({ pct, color, label }: { pct: number; color: string; label: string }) {
   const data = [
     { name: label, value: parseFloat(pct.toFixed(2)), color },
@@ -211,7 +215,7 @@ function QuorumScreenChart({ pct, color, label }: { pct: number; color: string; 
   )
 }
 
-// ─── Página principal ─────────────────────────────────────────────────────────
+//  Página principal 
 export default function ReportePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const router = useRouter()
@@ -250,21 +254,33 @@ export default function ReportePage({ params }: { params: Promise<{ id: string }
 
   const { asamblea, conjunto, asistentes, noAsistentes, proposiciones, poderes, resumen } = reporte
 
-  // ── Datos para las gráficas de quórum ──
+  //  Datos para las gráficas de quórum 
+  // Q1: quórum al cierre de registro
+  const quorumCierreData: SvgSlice[] | null = asamblea.registrosCerrados && asamblea.quorumAlCierreRegistros !== null ? [
+    { name: 'Al cierre', value: Number(asamblea.quorumAlCierreRegistros), color: '#f59e0b' },
+    { name: 'Faltante', value: Math.max(0, 100 - Number(asamblea.quorumAlCierreRegistros)), color: '#e5e7eb' },
+  ] : null
+
+  // Q2: quórum total acumulado (live / final)
   const quorumInicialData: SvgSlice[] = [
-    { name: 'Quórum alcanzado', value: asamblea.quorumInicial, color: '#6366f1' },
+    { name: 'Quórum total', value: asamblea.quorumInicial, color: '#6366f1' },
     { name: 'Faltante', value: Math.max(0, 100 - asamblea.quorumInicial), color: '#e5e7eb' },
   ]
+
+  // Q3: quórum post-confirmación
   const quorumFinalData: SvgSlice[] | null = asamblea.quorumFinal !== null ? [
-    { name: 'Quórum confirmado', value: asamblea.quorumFinal, color: '#22c55e' },
+    { name: 'Confirmados', value: asamblea.quorumFinal, color: '#22c55e' },
     { name: 'Faltante', value: Math.max(0, 100 - asamblea.quorumFinal), color: '#e5e7eb' },
   ] : null
+
+  // Cuántas columnas necesita la sección de quórum
+  const numQuorums = [quorumCierreData, true /* siempre Q2 */, quorumFinalData].filter(Boolean).length
 
   return (
     <AdminLayout>
       <div className="container mx-auto py-8 px-4 max-w-5xl">
 
-        {/* ── Acciones (no imprimir) ── */}
+        {/*  Acciones (no imprimir)  */}
         <div className="flex justify-between items-center mb-6 print:hidden">
           <Button variant="ghost" onClick={() => router.push(`/admin/asambleas/${id}`)}>
             <ArrowLeft className="mr-2 h-4 w-4" /> Volver
@@ -277,7 +293,7 @@ export default function ReportePage({ params }: { params: Promise<{ id: string }
         {/* ════════════ DOCUMENTO ════════════ */}
         <div className="bg-white shadow-sm rounded-lg p-8 print:shadow-none print:p-0 print:rounded-none">
 
-          {/* ── Encabezado del acta ── */}
+          {/*  Encabezado del acta  */}
           <div className="text-center mb-8 border-b pb-6">
             {/* Logo solo visible en impresión */}
             <div className="hidden print:flex print:justify-center print:mb-3">
@@ -300,28 +316,38 @@ export default function ReportePage({ params }: { params: Promise<{ id: string }
               <div><span className="text-gray-600">Modalidad:</span><span className="ml-2 font-medium capitalize">{asamblea.modalidad}</span></div>
               <div><span className="text-gray-600">Estado:</span><span className="ml-2 font-medium capitalize">{asamblea.estado}</span></div>
               <div><span className="text-gray-600">Quórum requerido:</span><span className="ml-2 font-medium">{asamblea.quorumRequerido}%</span></div>
+              {/*  Q1: Al cierre de registros  */}
+              {asamblea.registrosCerrados && asamblea.quorumAlCierreRegistros !== null && (
+                <div>
+                  <span className="text-gray-600">Quórum cierre de registro:</span>
+                  <span className={`ml-2 font-medium ${Number(asamblea.quorumAlCierreRegistros) >= asamblea.quorumRequerido ? 'text-green-600' : 'text-red-600'}`}>
+                    {Number(asamblea.quorumAlCierreRegistros).toFixed(2)}%
+                  </span>
+                  {asamblea.fechaCierreRegistros && (
+                    <span className="ml-1 text-xs text-gray-400">
+                      ({format(new Date(asamblea.fechaCierreRegistros), "HH:mm", { locale: es })})
+                    </span>
+                  )}
+                </div>
+              )}
+              {/*  Q2: Quórum total acumulado  */}
               <div>
-                <span className="text-gray-600">Quórum inicial:</span>
-                <span className={`ml-2 font-medium ${asamblea.quorumInicial >= 51 ? 'text-green-600' : 'text-red-600'}`}>
-                  {asamblea.quorumInicial.toFixed(2)}% 
+                <span className="text-gray-600">{asamblea.registrosCerrados ? 'Quórum total acumulado:' : 'Quórum inicial:'}</span>
+                <span className={`ml-2 font-medium ${asamblea.quorumInicial >= asamblea.quorumRequerido ? 'text-green-600' : 'text-red-600'}`}>
+                  {asamblea.quorumInicial.toFixed(2)}%
                 </span>
               </div>
-              <div>
-                <span className="text-gray-600">Quórum faltante:</span>
-                <span className={"ml-2 font-medium text-red-600"}>
-                  {parseFloat((100 - asamblea.quorumInicial).toFixed(2))}%
-                </span>
-              </div>
+              {/*  Q3: Post-confirmación  */}
               {asamblea.quorumFinal !== null && (
                 <>
                   <div>
-                    <span className="text-gray-600">Quórum final:</span>
+                    <span className="text-gray-600">Quórum post-confirmación:</span>
                     <span className={`ml-2 font-medium ${asamblea.quorumFinal >= asamblea.quorumRequerido ? 'text-green-600' : 'text-red-600'}`}>
                       {asamblea.quorumFinal.toFixed(2)}%
                     </span>
                   </div>
                   <div>
-                    <span className="text-gray-600">Variación:</span>
+                    <span className="text-gray-600">Variación (Q2→Q3):</span>
                     <span className={`ml-2 font-medium ${asamblea.quorumFinal < asamblea.quorumInicial ? 'text-red-600' : 'text-green-600'}`}>
                       {(asamblea.quorumFinal - asamblea.quorumInicial).toFixed(2)}%
                     </span>
@@ -330,33 +356,54 @@ export default function ReportePage({ params }: { params: Promise<{ id: string }
               )}
             </div>
 
-            {/* ── Gráficas de quórum ── */}
-            <div className={`mt-6 grid gap-6 ${asamblea.quorumFinal !== null ? 'grid-cols-2' : 'grid-cols-1 max-w-xs'}`}>
-              {/* Quórum inicial — screen */}
+            {/*  Gráficas de quórum (hasta 3 columnas)  */}
+            <div className={`mt-6 grid gap-6 ${numQuorums === 3 ? 'grid-cols-3' : numQuorums === 2 ? 'grid-cols-2' : 'grid-cols-1 max-w-xs'}`}>
+
+              {/*  Q1: Cierre de registros  */}
+              {quorumCierreData && (
+                <>
+                  <div className="print:hidden">
+                    <p className="text-xs font-semibold text-center text-amber-600 mb-1 uppercase tracking-wide">📋 Quórum al Cierre</p>
+                    <QuorumScreenChart pct={Number(asamblea.quorumAlCierreRegistros!)} color="#f59e0b" label="Al cierre de registro" />
+                  </div>
+                  <div className="hidden print:block text-center">
+                    <p className="text-xs font-semibold text-amber-600 mb-2 uppercase tracking-wide">Quórum al Cierre</p>
+                    <div className="flex flex-col items-center gap-3">
+                      <SvgPieChart data={quorumCierreData} size={130} />
+                      <SvgLegend data={quorumCierreData} />
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/*  Q2: Total acumulado (siempre presente)  */}
               <div className="print:hidden">
-                <p className="text-xs font-semibold text-center text-gray-500 mb-1 uppercase tracking-wide">Quórum Inicial</p>
-                <QuorumScreenChart pct={asamblea.quorumInicial} color="#6366f1" label="Quórum alcanzado" />
+                <p className="text-xs font-semibold text-center text-indigo-600 mb-1 uppercase tracking-wide">
+                  {asamblea.registrosCerrados ? 'Quórum Total' : 'Quórum Inicial'}
+                </p>
+                <QuorumScreenChart pct={asamblea.quorumInicial} color="#6366f1" label="Quórum total" />
               </div>
-              {/* Quórum inicial — print */}
               <div className="hidden print:block text-center">
-                <p className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">Quórum Inicial</p>
+                <p className="text-xs font-semibold text-indigo-600 mb-2 uppercase tracking-wide">
+                  {asamblea.registrosCerrados ? 'Quórum Total' : 'Quórum Inicial'}
+                </p>
                 <div className="flex flex-col items-center gap-3">
-                  <SvgPieChart data={quorumInicialData} size={140} />
+                  <SvgPieChart data={quorumInicialData} size={130} />
                   <SvgLegend data={quorumInicialData} />
                 </div>
               </div>
 
-              {/* Quórum final — screen */}
+              {/*  Q3: Post-confirmación  */}
               {asamblea.quorumFinal !== null && quorumFinalData && (
                 <>
                   <div className="print:hidden">
-                    <p className="text-xs font-semibold text-center text-gray-500 mb-1 uppercase tracking-wide">Quórum Final (Confirmados)</p>
-                    <QuorumScreenChart pct={asamblea.quorumFinal} color="#22c55e" label="Quórum confirmado" />
+                    <p className="text-xs font-semibold text-center text-green-600 mb-1 uppercase tracking-wide">✅ Post-Confirmación</p>
+                    <QuorumScreenChart pct={asamblea.quorumFinal} color="#22c55e" label="Confirmados presentes" />
                   </div>
                   <div className="hidden print:block text-center">
-                    <p className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">Quórum Final (Confirmados)</p>
+                    <p className="text-xs font-semibold text-green-600 mb-2 uppercase tracking-wide">Post-Confirmación</p>
                     <div className="flex flex-col items-center gap-3">
-                      <SvgPieChart data={quorumFinalData} size={140} />
+                      <SvgPieChart data={quorumFinalData} size={130} />
                       <SvgLegend data={quorumFinalData} />
                     </div>
                   </div>

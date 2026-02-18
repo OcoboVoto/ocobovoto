@@ -31,7 +31,6 @@ export async function GET(
           },
           orderBy: { numeroOrden: 'asc' },
         },
-        // ─── Poderes otorgados en esta asamblea ───────────────────────
         poderes: {
           where: { activo: true },
           include: {
@@ -163,6 +162,11 @@ export async function GET(
           quorumInicial: Number(asamblea.quorumInicial),
           quorumFinal: asamblea.quorumFinal ? Number(asamblea.quorumFinal) : null,
           confirmacionActivada: asamblea.confirmacionActivada,
+          registrosCerrados: (asamblea as any).registrosCerrados ?? false,
+          quorumAlCierreRegistros: (asamblea as any).quorumAlCierreRegistros
+            ? Number((asamblea as any).quorumAlCierreRegistros)
+            : null,
+          fechaCierreRegistros: (asamblea as any).fechaCierreRegistros ?? null,
         },
         conjunto: {
           nombre: asamblea.conjunto.nombre,

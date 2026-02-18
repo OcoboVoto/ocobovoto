@@ -44,7 +44,7 @@ export async function POST(
       },
     })
 
-    // ✅ Broadcast con service_role (no browser client)
+    //  Broadcast con service_role (no browser client)
     await supabase.channel(`asamblea-${id}`).send({
       type: 'broadcast',
       event: 'confirmacion',
@@ -54,7 +54,7 @@ export async function POST(
       },
     })
 
-    // ✅ Broadcast de cambio de estado para el detalle admin
+    //  Broadcast de cambio de estado para el detalle admin
     await supabase.channel(`asamblea-${id}`).send({
       type: 'broadcast',
       event: 'asamblea-update',
