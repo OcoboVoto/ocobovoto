@@ -1,3 +1,5 @@
+//app/admin/reportes/[id]/page.tsx
+
 'use client'
 
 import { use, useEffect, useState } from 'react'
@@ -8,14 +10,8 @@ import { useRouter } from 'next/navigation'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import Image from 'next/image'
-import {
-  PieChart,
-  Pie,
-  Cell,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from 'recharts'
+import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import type { ReporteAsambleaData } from '@/lib/reportes/get-asamblea-reporte'
 
 //  Paleta de colores 
 const OPTION_COLORS = [
@@ -29,42 +25,6 @@ const OPTION_COLORS = [
   '#8b5cf6', // violet
 ]
 const NO_VOTARON_COLOR = '#fb923c'  // naranja
-
-//  Tipos 
-interface Reporte {
-  asamblea: {
-    id: string
-    tipo: string
-    fechaHora: string
-    modalidad: string
-    estado: string
-    quorumRequerido: number
-    quorumInicial: number
-    quorumFinal: number | null
-    confirmacionActivada: boolean
-    //  Cierre de registros 
-    registrosCerrados: boolean
-    quorumAlCierreRegistros: number | null
-    fechaCierreRegistros: string | null
-  }
-  conjunto: { nombre: string; nit: string }
-  asistentes: { nombreCompleto: string; torreManzana: string; aptoCasa: string; coeficiente: number }[]
-  noAsistentes: { nombreCompleto: string; torreManzana: string; aptoCasa: string }[]
-  proposiciones: any[]
-  poderes: {
-    id: string
-    otorgante: { nombreCompleto: string; cedula: string; torreManzana: string; aptoCasa: string; coeficiente: number }
-    apoderado: { nombreCompleto: string; cedula: string }
-    fechaRegistro: string
-  }[]
-  resumen: {
-    totalPropietarios: number
-    totalAsistentes: number
-    totalNoAsistentes: number
-    totalProposiciones: number
-    totalPoderes: number
-  }
-}
 
 //  Tooltip recharts 
 const CustomTooltip = ({ active, payload }: any) => {
@@ -219,7 +179,8 @@ function QuorumScreenChart({ pct, color, label }: { pct: number; color: string; 
 export default function ReportePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const router = useRouter()
-  const [reporte, setReporte] = useState<Reporte | null>(null)
+  //const [reporte, setReporte] = useState<Reporte | null>(null)
+  const [reporte, setReporte] = useState<ReporteAsambleaData | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => { fetchReporte() }, [id])
