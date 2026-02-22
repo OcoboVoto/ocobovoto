@@ -82,11 +82,20 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   legendItem: {
-    flexDirection: 'row' as const,
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
     marginBottom: 4,
     fontSize: 9,
+  },
+  legendText: {
+    marginLeft: 6,
+    flexGrow: 1,
+    flexShrink: 1,
+  },
+  legendValue: {
+    width: 40,
+    textAlign: 'right',
+    fontWeight: 'bold',
   },
   legendColor: {
     width: 10,
@@ -302,8 +311,10 @@ function PieChart({
         {data.map((d, i) => (
           <View key={i} style={styles.legendItem}>
             <View style={[styles.legendColor, { backgroundColor: d.color }]} />
-            <Text style={{ color: '#374151', flex: 1 }}>{d.name}</Text>
-            <Text style={{ fontWeight: 'bold', color: '#111827' }}>{d.value.toFixed(1)}%</Text>
+            <Text style={styles.legendText}>{d.name}</Text>
+            <Text style={styles.legendValue}>
+              {d.value.toFixed(1)}%
+            </Text>
           </View>
         ))}
       </View>
@@ -556,11 +567,11 @@ function ReportePDF({ reporte }: { reporte: ReporteAsambleaData }) {
                   </View>
                   {prop.opciones.map((opc, i) => (
                     <View key={i} style={[styles.poderesRow, { backgroundColor: i % 2 === 0 ? '#fff' : '#f9fafb' }]}>
-                      <View style={[styles.poderesCell, { flex: 2, flexDirection: 'row', alignItems: 'center', gap: 6 }]}>
+                      <View style={[styles.poderesCell, { flex: 2, flexDirection: 'row', alignItems: 'center'}]}>
                         <View style={[styles.legendColor, { backgroundColor: OPTION_COLORS[i % OPTION_COLORS.length], borderRadius: 5 }]} />
-                        <Text>{opc.texto}</Text>
+                        <Text style={{ flexShrink: 1 }}>{opc.texto}</Text>
                       </View>
-                      <Text style={[styles.poderesCell, { width: 50, textAlign: 'right', fontWeight: 'bold' }]}>
+                      <Text style={[styles.poderesCell, { width: 55, textAlign: 'right', fontWeight: 'bold' }]}>
                         {opc.porcentaje.toFixed(2)}%
                       </Text>
                       <Text style={[styles.poderesCell, { width: 40, textAlign: 'right' }]}>{opc.personas}</Text>
@@ -568,11 +579,11 @@ function ReportePDF({ reporte }: { reporte: ReporteAsambleaData }) {
                     </View>
                   ))}
                   <View style={[styles.poderesRow, { backgroundColor: '#fff7ed' }]}>
-                    <View style={[styles.poderesCell, { flex: 2, flexDirection: 'row', alignItems: 'center', gap: 6 }]}>
+                    <View style={[styles.poderesCell, { flex: 2, flexDirection: 'row', alignItems: 'center'}]}>
                       <View style={[styles.legendColor, { backgroundColor: NO_VOTARON_COLOR, borderRadius: 5 }]} />
-                      <Text>No votaron</Text>
+                      <Text style={{ flexShrink: 1 }}>No votaron</Text>
                     </View>
-                    <Text style={[styles.poderesCell, { width: 50, textAlign: 'right', fontWeight: 'bold' }]}>
+                    <Text style={[styles.poderesCell, { width: 55, textAlign: 'right', fontWeight: 'bold' }]}>
                       {prop.noVotaron.porcentaje.toFixed(2)}%
                     </Text>
                     <Text style={[styles.poderesCell, { width: 40, textAlign: 'right' }]}>{prop.noVotaron.personas}</Text>

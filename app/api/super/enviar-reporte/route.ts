@@ -1,6 +1,6 @@
 //app/api/super/enviar-reporte/route.ts
 import { NextRequest, NextResponse } from 'next/server'
-import { generarReporteHTML } from '@/lib/pdf-generator'
+import { generarReporteHTML } from '@/lib/reportes/pdf-generator'
 import { render } from '@react-email/render'
 import ReporteAsambleaEmail from '@/emails/reporte-asamblea'
 import { format } from 'date-fns'
