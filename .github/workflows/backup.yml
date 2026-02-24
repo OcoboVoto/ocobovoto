@@ -54,8 +54,8 @@ jobs:
               scope=drive \
               service_account_file=/data/service_account.json
 
-            rclone copy /data/${{ env.SQL_FILE }} drive:Backups\ Asamblea
-            rclone copy /data/${{ env.DUMP_FILE }} drive:Backups\ Asamblea
+            rclone copy /data/${{ env.SQL_FILE }} "drive:Backups Asamblea"
+            rclone copy /data/${{ env.DUMP_FILE }} "drive:Backups Asamblea"
 
 #      - name: Cleanup old backups (keep 30 days)
 #        uses: addnab/docker-run-action@v3
