@@ -1,0 +1,70 @@
+name: Supabase Backup
+
+on:
+  schedule:
+    - cron: "0 5 * * 1"   # Lunes 12AM Colombia (UTC-5)
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install postgresql-client -y
+
+      - name: Create backups
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          DATE=$(date +%F)
+
+          # SQL plano
+          pg_dump "$DATABASE_URL" > backup_$DATE.sql
+
+          # Dump binario profesional
+          pg_dump "$DATABASE_URL" \
+            --format=custom \
+            --no-owner \
+            --no-privileges \
+            -f backup_$DATE.dump
+
+          # Comprimir ambos
+          gzip backup_$DATE.sql
+          gzip backup_$DATE.dump
+
+          echo "SQL_FILE=backup_$DATE.sql.gz" >> $GITHUB_ENV
+          echo "DUMP_FILE=backup_$DATE.dump.gz" >> $GITHUB_ENV
+
+      - name: Upload to Google Drive
+        uses: addnab/docker-run-action@v3
+        with:
+          image: rclone/rclone
+          options: >
+            -v ${{ github.workspace }}:/data
+          run: |
+            echo '${{ secrets.GOOGLE_SERVICE_ACCOUNT }}' > /data/service_account.json
+
+            rclone config create drive drive \
+              scope=drive \
+              service_account_file=/data/service_account.json
+
+            rclone copy /data/${{ env.SQL_FILE }} drive:"Backups Asamblea"
+            rclone copy /data/${{ env.DUMP_FILE }} drive:"Backups Asamblea"
+
+#      - name: Cleanup old backups (keep 30 days)
+#        uses: addnab/docker-run-action@v3
+#        with:
+#          image: rclone/rclone
+#          options: >
+#            -v ${{ github.workspace }}:/data
+#          run: |
+#            echo '${{ secrets.GOOGLE_SERVICE_ACCOUNT }}' > /data/service_account.json
+
+#           rclone config create drive drive \
+#              scope=drive \
+#              service_account_file=/data/service_account.json
+
+#            rclone delete drive:"Backups Asamblea" --min-age 30d
