@@ -1,8 +1,11 @@
 //components/hooks/use-resultados-tiempo-real,ts
 'use client'
 
-import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase/createBrowserClient'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { getAblyClient } from '@/lib/ably/client'
+import { ABLY_CHANNELS, ABLY_EVENTS } from '@/lib/ably/channel-names'
+import type { RealtimeChannel } from 'ably'
+
 
 export interface ResultadosVivo {
     asamblea: {
@@ -30,7 +33,7 @@ export interface ResultadosVivo {
             porcentaje: number
             coeficiente: number
             votantes: number
-          } | null
+        } | null
         confirmacionActivada: boolean
         registrosCerrados: boolean
         quorumAlCierreRegistros: number | null
@@ -67,10 +70,11 @@ export function useResultadosTiempoReal(asambleaId: string) {
     const [cargando, setCargando] = useState(true)
     const [error, setError] = useState<string | null>(null)
 
-    const supabaseRealTime = supabase
+    // Ref para el canal de Ably (evitar recrearlo en cada render)
+    const channelRef = useRef<RealtimeChannel | null>(null)
 
     // Función para cargar datos
-    const cargarDatos = async () => {
+    const cargarDatos = useCallback(async () => {
         if (!asambleaId) return
         try {
             const response = await fetch(`/api/asambleas/${asambleaId}/resultados-vivo`)
@@ -88,7 +92,7 @@ export function useResultadosTiempoReal(asambleaId: string) {
         } finally {
             setCargando(false)
         }
-    }
+    }, [asambleaId])
 
     useEffect(() => {
         if (!asambleaId) {
@@ -100,49 +104,45 @@ export function useResultadosTiempoReal(asambleaId: string) {
         cargarDatos()
 
         // Canal para escuchar cambios 
-        const channel = supabaseRealTime
-            .channel(`asamblea-${asambleaId}`)
-            .on('postgres_changes', {
-                event: '*',
-                schema: 'public',
-                table: 'votos',
-            }, () => {
-                console.log("Cambio en votos")
-                cargarDatos()
-            })
-            .on('postgres_changes', {
-                event: '*',
-                schema: 'public',
-                table: 'confirmaciones_asistencia',
-            }, cargarDatos)
-            .on('postgres_changes', {
-                event: '*',
-                schema: 'public',
-                table: 'votantes',
-            }, cargarDatos)
-            .on('postgres_changes', {
-                event: '*',
-                schema: 'public',
-                table: 'proposiciones',
-            }, cargarDatos)
-            .on('postgres_changes', {
-                event: '*',
-                schema: 'public',
-                table: 'asambleas',
-                //filter: `id=eq.${asambleaId}`,
-            }, () => {
-                console.log("Cambio en asamblea")
-                cargarDatos()
-            })
-            .subscribe((status) => {
-                console.log("Realtime status:", status)
-            })
+        const setupAbly = async () => {
+            try {
+                const ably = getAblyClient()
+                const channelName = ABLY_CHANNELS.asamblea(asambleaId)
+                const channel = ably.channels.get(channelName)
+                channelRef.current = channel
 
-        // Cleanup al desmontar
-        return () => {
-            supabase.removeChannel(channel)
+                // Todos disparan una recarga de datos del endpoint
+                channel.subscribe(ABLY_EVENTS.VOTO_REGISTRADO, () => {
+                    cargarDatos()
+                })
+
+                channel.subscribe(ABLY_EVENTS.PROPOSICION_UPDATE, () => {
+                    cargarDatos()
+                })
+
+                channel.subscribe(ABLY_EVENTS.ASAMBLEA_UPDATE, () => {
+                    cargarDatos()
+                })
+
+                channel.subscribe(ABLY_EVENTS.CONFIRMACION, () => {
+                    cargarDatos()
+                })
+            }
+            catch (err) {
+                console.error('[Ably] Error en useResultadosTiempoReal:', err)
+                // Fallback: si Ably falla, los datos iniciales ya fueron cargados
+            }
         }
-    }, [asambleaId])
+        setupAbly()
+
+        // Cleanup al desmontar o cambiar asambleaId
+        return () => {
+            if (channelRef.current) {
+                channelRef.current.unsubscribe()
+                channelRef.current = null
+            }
+        }
+    }, [asambleaId, cargarDatos])
 
     useEffect(() => {
         setCargando(true)

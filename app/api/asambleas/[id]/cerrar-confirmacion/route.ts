@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { ApiResponse } from '@/types'
-import { supabase } from '@/lib/supabase/createBrowserClient'
+import { publishToChannel } from '@/lib/ably/server'
+import { ABLY_CHANNELS, ABLY_EVENTS } from '@/lib/ably/channel-names'
 
 export async function POST(
   request: NextRequest,
@@ -44,26 +45,22 @@ export async function POST(
       },
     })
 
-    //  Broadcast con service_role (no browser client)
-    await supabase.channel(`asamblea-${id}`).send({
-      type: 'broadcast',
-      event: 'confirmacion',
-      payload: {
-        confirmacionActivada: false,
-        confirmacionCerrada: true,
-      },
+    const channelName = ABLY_CHANNELS.asamblea(id)
+
+    // Notificar a votantes: la confirmación fue cerrada
+    await publishToChannel(channelName, ABLY_EVENTS.CONFIRMACION, {
+      confirmacionActivada: false,
+      confirmacionCerrada: true,
+      timestamp: new Date().toISOString(),
     })
 
-    //  Broadcast de cambio de estado para el detalle admin
-    await supabase.channel(`asamblea-${id}`).send({
-      type: 'broadcast',
-      event: 'asamblea-update',
-      payload: {
-        tipo: 'confirmacion-cerrada',
-        quorumFinal,
-        totalConfirmados: votantesConfirmados.length,
-        totalVotantes: asamblea.votantes.length,
-      },
+    // Notificar al admin: actualizar estado general de la asamblea
+    await publishToChannel(channelName, ABLY_EVENTS.ASAMBLEA_UPDATE, {
+      tipo: 'confirmacion-cerrada',
+      quorumFinal,
+      totalConfirmados: votantesConfirmados.length,
+      totalVotantes: asamblea.votantes.length,
+      timestamp: new Date().toISOString(),
     })
 
     return NextResponse.json<ApiResponse>({

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { ApiResponse } from '@/types'
+import { publishToChannel } from '@/lib/ably/server'
+import { ABLY_CHANNELS, ABLY_EVENTS } from '@/lib/ably/channel-names'
 
 export async function PATCH(
   request: NextRequest,
@@ -22,11 +24,24 @@ export async function PATCH(
     }
 
     const proposicion = await prisma.proposicion.update({
-        where: { id },
-        data,
-        include: { opciones: true },
-      })
+      where: { id },
+      data,
+      include: { opciones: true },
+    })
 
+    // Publicar en Ably: notificar a los votantes que hay una nueva votación abierta
+    // o que una votación fue cerrada. La página de votación escucha este evento
+    // y refresca la lista de proposiciones activas.
+    await publishToChannel(
+      ABLY_CHANNELS.asamblea(proposicion.asambleaId),
+      ABLY_EVENTS.PROPOSICION_UPDATE,
+      {
+        proposicionId: id,
+        estado: proposicion.estado,
+        accion,
+        timestamp: new Date().toISOString(),
+      }
+    )
 
     return NextResponse.json<ApiResponse>({
       success: true,

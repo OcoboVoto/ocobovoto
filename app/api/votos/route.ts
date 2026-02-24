@@ -2,6 +2,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { ApiResponse } from '@/types'
+import { publishToChannel } from '@/lib/ably/server'
+import { ABLY_CHANNELS, ABLY_EVENTS } from '@/lib/ably/channel-names'
+
 
 export async function POST(request: NextRequest) {
   try {
@@ -59,6 +62,19 @@ export async function POST(request: NextRequest) {
         propietariosRepresentados: votante.propietariosRepresenta,
       },
     })
+
+    // Publicar en Ably: notificar que se registró un voto
+    // - El admin recibe esto y actualiza los gráficos de resultados
+    // - La pantalla de resultados-vivo también escucha este evento
+    await publishToChannel(
+      ABLY_CHANNELS.asamblea(proposicion.asambleaId),
+      ABLY_EVENTS.VOTO_REGISTRADO,
+      {
+        proposicionId,
+        votanteId,
+        timestamp: new Date().toISOString(),
+      }
+    )
 
     return NextResponse.json<ApiResponse>({
       success: true,

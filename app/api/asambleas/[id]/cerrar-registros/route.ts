@@ -2,6 +2,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { ApiResponse } from '@/types'
+import { publishToChannel } from '@/lib/ably/server'
+import { ABLY_CHANNELS, ABLY_EVENTS } from '@/lib/ably/channel-names'
 
 export async function POST(
   request: NextRequest,
@@ -70,6 +72,18 @@ export async function POST(
         porcentajeCierre: porcentajeRedondeado,
       },
     })
+
+    // Publicar en Ably: notificar a TODOS los votantes conectados en tiempo real
+    await publishToChannel(
+      ABLY_CHANNELS.asamblea(id),
+      ABLY_EVENTS.CONFIRMACION,
+      {
+        confirmacionActivada: true,
+        confirmacionCerrada: false,
+        confirmacionUsada: asambleaActualizada.confirmacionUsada,
+        timestamp: new Date().toISOString(),
+      }
+    )
 
     return NextResponse.json<ApiResponse>({
       success: true,

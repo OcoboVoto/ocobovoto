@@ -1,12 +1,14 @@
 //app/votar/[asambleaId]//page.tsx
 'use client'
 
-import { use, useEffect, useState } from 'react'
+import { use, useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { CheckCircle2, AlertCircle, Vote, LogOut, UserCheck, Video, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
-import { supabase } from '@/lib/supabase/createBrowserClient'
+import { getAblyClient } from '@/lib/ably/client'
+import { ABLY_CHANNELS, ABLY_EVENTS } from '@/lib/ably/channel-names'
+import type { RealtimeChannel } from 'ably'
 
 interface Proposicion {
     id: string
@@ -47,9 +49,10 @@ export default function VotacionPage({
     const [confirmando, setConfirmando] = useState(false)
     const [modalidadAsamblea, setModalidadAsamblea] = useState<string | null>(null)
     const [linkZoom, setLinkZoom] = useState<string | null>(null)
+    const ablyChannelRef = useRef<RealtimeChannel | null>(null)
 
     //Helpers 
-    const refrescarProposiciones = async (cedulaValue: string) => {
+    const refrescarProposiciones = useCallback(async (cedulaValue: string) => {
         try {
             const response = await fetch(`/api/votacion/${asambleaId}?cedula=${cedulaValue}`)
             const data = await response.json()
@@ -57,13 +60,11 @@ export default function VotacionPage({
                 setProposiciones(data.data.proposiciones)
             }
         } catch (err) {
-            console.error('[Realtime] Error refrescando proposiciones:', err)
+            console.error('[Ably] Error refrescando proposiciones:', err)
         }
-    }
+    }, [asambleaId])
 
-    const autenticar = () => autenticarConCedula(cedula)
-
-    const autenticarConCedula = async (cedulaValue: string) => {
+    const autenticarConCedula = useCallback(async (cedulaValue: string) => {
         if (cedulaValue.length < 6) {
             setError('Ingresa una cédula válida')
             return
@@ -82,55 +83,31 @@ export default function VotacionPage({
                 setAutenticado(true)
                 setModalidadAsamblea(data.data.modalidad ?? null)
                 setLinkZoom(data.data.linkZoom ?? null)
-                // Guardar cédula en sessionStorage para no pedirla de nuevo
                 sessionStorage.setItem('cedula_votante', cedulaValue)
+
+                // Verificar si la confirmación ya está activa al momento de autenticarse
+                if (data.data.confirmacionActivada && !data.data.votante.confirmoAsistencia) {
+                    setMostrarAlertaConfirmacion(true)
+                }
             } else {
-                setError(data.error)
+                setError(data.error || 'Cédula no encontrada en esta asamblea')
+                sessionStorage.removeItem('cedula_votante')
             }
-        } catch (error) {
-            console.error('Error restaurando sesión', error)
-            setError('Error de conexión')
-            setAutenticado(false)
+        } catch (err) {
+            setError('Error de conexión. Intenta nuevamente.')
         } finally {
             setLoading(false)
         }
-    }
+    }, [asambleaId])
 
-    const emitirVoto = async (proposicionId: string, opcionId: string) => {
-        setVotando(proposicionId)
-        setError('')
-
-        try {
-            const response = await fetch('/api/votos', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    proposicionId,
-                    votanteId: votante?.id,
-                    opcionId,
-                }),
-            })
-
-            const data = await response.json()
-
-            if (data.success) {
-                // Marcar como votada
-                setProposiciones(props =>
-                    props.map(p =>
-                        p.id === proposicionId ? { ...p, yaVoto: true } : p
-                    )
-                )
-            } else {
-                setError(data.error)
-            }
-        } catch (error) {
-            setError('Error al registrar voto')
-        } finally {
-            setVotando(null)
-        }
-    }
+    const autenticar = () => autenticarConCedula(cedula)
 
     const cerrarSesion = () => {
+        // Limpiar canal Ably antes de cerrar sesión
+        if (ablyChannelRef.current) {
+            ablyChannelRef.current.unsubscribe()
+            ablyChannelRef.current = null
+        }
         sessionStorage.removeItem('cedula_votante')
         setAutenticado(false)
         setCedula('')
@@ -183,102 +160,136 @@ export default function VotacionPage({
             setInicializando(false)
         }
         restaurarSesion()
-    }, [asambleaId])
+    }, [asambleaId, autenticarConCedula])
 
-//  REALTIME: Canal único — SIN polling 
-useEffect(() => {
-    if (!autenticado || !cedula || !votante) return
+    // Ably REALTIME
+    useEffect(() => {
+        if (!autenticado || !cedula || !votante) return
 
-   // console.log('[Realtime] Suscribiendo canales votacion-', asambleaId)
+        const setupAbly = async () => {
+            try {
+                const ably = getAblyClient()
+                const channelName = ABLY_CHANNELS.asamblea(asambleaId)
+                const channel = ably.channels.get(channelName)
+                ablyChannelRef.current = channel
 
-    // Canal 1: postgres_changes para proposiciones y votos
-    const channelDB = supabase
-        .channel(`votacion-db-${asambleaId}-${votante.id}`)
-        .on(
-            'postgres_changes',
-            {
-                event: '*',
-                schema: 'public',
-                table: 'proposiciones',
-            },
-            async (payload) => {
-                const newData = payload.new as any
-                if (newData?.asamblea_id && newData.asamblea_id !== asambleaId) return
-               // console.log('[Realtime] Proposición:', payload.eventType)
-                await refrescarProposiciones(cedula)
-            }
-        )
-        .on(
-            'postgres_changes',
-            {
-                event: 'INSERT',
-                schema: 'public',
-                table: 'votos',
-            },
-            (payload) => {
-                const newData = payload.new as any
-                if (newData?.votante_id && newData.votante_id !== votante.id) return
-               // console.log('[Realtime] Voto registrado:', newData?.proposicion_id)
-                const proposicionId = newData?.proposicion_id
-                if (proposicionId) {
-                    setProposiciones(props =>
-                        props.map(p =>
-                            p.id === proposicionId ? { ...p, yaVoto: true } : p
+                // Evento: nueva proposición o cambio de estado (abrir/cerrar votación)
+                channel.subscribe(ABLY_EVENTS.PROPOSICION_UPDATE, async () => {
+                    await refrescarProposiciones(cedula)
+                })
+
+                // Evento: un voto fue registrado — actualizar estado local si es del votante actual
+                // (El server también puede publicar esto con el votante_id)
+                channel.subscribe(ABLY_EVENTS.VOTO_REGISTRADO, (message) => {
+                    const { votanteId, proposicionId } = message.data || {}
+                    // Solo actualizar si es el voto de ESTE votante
+                    if (votanteId === votante.id && proposicionId) {
+                        setProposiciones(props =>
+                            props.map(p =>
+                                p.id === proposicionId ? { ...p, yaVoto: true } : p
+                            )
                         )
+                    }
+                })
+
+                // Evento: confirmación de asistencia activada o cerrada por el admin
+                channel.subscribe(ABLY_EVENTS.CONFIRMACION, (message) => {
+                    const data = message.data || {}
+
+                    if (data.confirmacionActivada && !votante.confirmoAsistencia) {
+                        setMostrarAlertaConfirmacion(true)
+                    }
+
+                    if (!data.confirmacionActivada || data.confirmacionCerrada) {
+                        setMostrarAlertaConfirmacion(false)
+                    }
+                })
+
+                // Evento: cambio de estado de la asamblea (ej: finalizada)
+                channel.subscribe(ABLY_EVENTS.ASAMBLEA_UPDATE, async (message) => {
+                    const data = message.data || {}
+                    if (data.estado === 'finalizada') {
+                        // Refrescar proposiciones para reflejar cierre de votaciones
+                        await refrescarProposiciones(cedula)
+                    }
+                })
+
+                if (process.env.NODE_ENV === 'development') {
+                    console.log('[Ably] Votante suscrito al canal:', channelName)
+                }
+            } catch (err) {
+                console.error('[Ably] Error al conectar en página de votación:', err)
+            }
+        }
+
+        // Verificación inicial (solo 1 vez)
+        /*const verificarConfirmacionInicial = async () => {
+            try {
+                const response = await fetch(`/api/asambleas/${asambleaId}`)
+                const data = await response.json()
+                if (data.success && data.data.confirmacionActivada && !data.data.confirmacionCerrada) {
+                    const yaConfirmo = data.data.votantes?.find(
+                        (v: any) => v.id === votante.id
                     )
+                    if (yaConfirmo && !yaConfirmo.confirmoAsistencia) {
+                        setMostrarAlertaConfirmacion(true)
+                    }
                 }
+            } catch (error) {
+                console.error('Error al verificar confirmación:', error)
             }
-        )
-        .subscribe((status) => {
-           // console.log('[Realtime] Canal DB:', status)
-        })
+        }
 
-    // Canal 2: BROADCAST para confirmación de asistencia (evita el 401 de asambleas)
-    const channelBroadcast = supabase
-        .channel(`asamblea-${asambleaId}`)
-        .on('broadcast', { event: 'confirmacion' }, (payload) => {
-           // console.log('[Realtime] Broadcast confirmación:', payload.payload)
+        verificarConfirmacionInicial()*/
 
-            const data = payload.payload
+        setupAbly()
 
-            if (data.confirmacionActivada && !votante.confirmoAsistencia) {
-                setMostrarAlertaConfirmacion(true)
+        return () => {
+            if (ablyChannelRef.current) {
+                ablyChannelRef.current.unsubscribe()
+                ablyChannelRef.current = null
             }
+        }
+    }, [autenticado, cedula, votante, asambleaId, refrescarProposiciones])
 
-            if (!data.confirmacionActivada || data.confirmacionCerrada) {
-                setMostrarAlertaConfirmacion(false)
-            }
-        })
-        .subscribe((status) => {
-           // console.log('[Realtime] Canal Broadcast:', status)
-        })
+    const emitirVoto = async (proposicionId: string, opcionId: string) => {
+        if (!cedula || votando) return
+        setVotando(proposicionId)
+        setError('')
 
-    // Verificación inicial (solo 1 vez)
-    const verificarConfirmacionInicial = async () => {
         try {
-            const response = await fetch(`/api/asambleas/${asambleaId}`)
+            const response = await fetch('/api/votos', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    proposicionId,
+                    votanteId: votante?.id,
+                    opcionId,
+                    cedula
+                }),
+            })
+
             const data = await response.json()
-            if (data.success && data.data.confirmacionActivada && !data.data.confirmacionCerrada) {
-                const yaConfirmo = data.data.votantes?.find(
-                    (v: any) => v.id === votante.id
+
+            if (data.success) {
+                // Marcar como votada
+                setProposiciones(props =>
+                    props.map(p =>
+                        p.id === proposicionId ? { ...p, yaVoto: true } : p
+                    )
                 )
-                if (yaConfirmo && !yaConfirmo.confirmoAsistencia) {
-                    setMostrarAlertaConfirmacion(true)
-                }
+                toast.success('¡Voto registrado exitosamente!')
+            } else {
+                toast.error('Error al votar: ' + (data.error || 'Error desconocido'))
+                setError(data.error)
             }
         } catch (error) {
-            console.error('Error al verificar confirmación:', error)
+            toast.error('Error de conexión al votar')
+            setError('Error al registrar voto')
+        } finally {
+            setVotando(null)
         }
     }
-
-    verificarConfirmacionInicial()
-
-    return () => {
-       // console.log('[Realtime] Removiendo canales')
-        supabase.removeChannel(channelDB)
-        supabase.removeChannel(channelBroadcast)
-    }
-}, [autenticado, asambleaId, cedula, votante?.id])
 
     // RENDER 
 
@@ -346,9 +357,9 @@ useEffect(() => {
         )
     }
 
-       // condición para mostrar banner de Zoom 
-       const esVirtualOHibrida = modalidadAsamblea === 'virtual' || modalidadAsamblea === 'hibrida'
-       const mostrarZoom = esVirtualOHibrida && linkZoom
+    // condición para mostrar banner de Zoom 
+    const esVirtualOHibrida = modalidadAsamblea === 'virtual' || modalidadAsamblea === 'hibrida'
+    const mostrarZoom = esVirtualOHibrida && linkZoom
 
     // Pantalla de Votación
     return (

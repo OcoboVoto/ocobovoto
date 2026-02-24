@@ -80,7 +80,7 @@ export function BotonCerrarRegistros({
                   Quórum al cierre
                 </p>
                 <p className="text-2xl font-bold text-amber-900">
-                  {typeof quorumAlCierre === 'number' ? quorumAlCierre.toFixed(2) : '0.00'}%
+                  {quorumAlCierre != null ? Number(quorumAlCierre).toFixed(2) : '0.00'}%
                 </p>
               </div>
               {fechaCierre && (
