@@ -12,26 +12,28 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Install PostgreSQL client
-        run: sudo apt-get update && sudo apt-get install postgresql-client -y
-
-      - name: Create backups
+      - name: Create backups using PostgreSQL 17
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           DATE=$(date +%F)
 
           # SQL plano
-          pg_dump "$DATABASE_URL" > backup_$DATE.sql
+          docker run --rm \
+            -e PGPASSWORD=$(echo $DATABASE_URL | sed -E 's|.*:(.*)@.*|\1|') \
+            postgres:17 \
+            pg_dump "$DATABASE_URL" > backup_$DATE.sql
 
-          # Dump binario profesional
-          pg_dump "$DATABASE_URL" \
-            --format=custom \
-            --no-owner \
-            --no-privileges \
-            -f backup_$DATE.dump
+          # Dump binario
+          docker run --rm \
+            -e PGPASSWORD=$(echo $DATABASE_URL | sed -E 's|.*:(.*)@.*|\1|') \
+            postgres:17 \
+            pg_dump "$DATABASE_URL" \
+              --format=custom \
+              --no-owner \
+              --no-privileges \
+              > backup_$DATE.dump
 
-          # Comprimir ambos
           gzip backup_$DATE.sql
           gzip backup_$DATE.dump
 
@@ -45,14 +47,15 @@ jobs:
           options: >
             -v ${{ github.workspace }}:/data
           run: |
-            echo '${{ secrets.GOOGLE_SERVICE_ACCOUNT }}' > /data/service_account.json
+            mkdir -p /config/rclone
+            echo "${{ secrets.RCLONE_CONFIG_BASE64 }}" | base64 -d > /config/rclone/rclone.conf
 
-            rclone config create drive drive \
-              scope=drive \
-              service_account_file=/data/service_account.json
+            echo "===== CONFIG DEBUG ====="
+            cat /config/rclone/rclone.conf
+            echo "========================"
 
-            rclone copy /data/${{ env.SQL_FILE }} drive:"Backups Asamblea"
-            rclone copy /data/${{ env.DUMP_FILE }} drive:"Backups Asamblea"
+            rclone copy /data/${{ env.SQL_FILE }} "drive:Backups Asamblea"
+            rclone copy /data/${{ env.DUMP_FILE }} "drive:Backups Asamblea"
 
 #      - name: Cleanup old backups (keep 30 days)
 #        uses: addnab/docker-run-action@v3
@@ -63,7 +66,7 @@ jobs:
 #          run: |
 #            echo '${{ secrets.GOOGLE_SERVICE_ACCOUNT }}' > /data/service_account.json
 
-#           rclone config create drive drive \
+#            rclone config create drive drive \
 #              scope=drive \
 #              service_account_file=/data/service_account.json
 
