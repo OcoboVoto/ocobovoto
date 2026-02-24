@@ -48,7 +48,11 @@ jobs:
             -v ${{ github.workspace }}:/data
           run: |
             mkdir -p /config/rclone
-            printf "%s" "${{ secrets.RCLONE_CONFIG }}" | base64 -d > /config/rclone/rclone.conf
+            echo "${{ secrets.RCLONE_CONFIG_BASE64 }}" | base64 -d > /config/rclone/rclone.conf
+
+            echo "===== CONFIG DEBUG ====="
+            cat /config/rclone/rclone.conf
+            echo "========================"
 
             rclone copy /data/${{ env.SQL_FILE }} "drive:Backups Asamblea"
             rclone copy /data/${{ env.DUMP_FILE }} "drive:Backups Asamblea"
