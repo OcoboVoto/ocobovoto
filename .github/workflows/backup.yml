@@ -47,14 +47,15 @@ jobs:
           options: >
             -v ${{ github.workspace }}:/data
           run: |
-            echo "${{ secrets.GOOGLE_SERVICE_ACCOUNT_B64 }}" | base64 -d > /data/service_account.json
+            mkdir -p /config/rclone
+            printf "%s" "${{ secrets.RCLONE_CONFIG }}" > /config/rclone/rclone.conf
 
             rclone config create drive drive \
               scope=drive \
               service_account_file=/data/service_account.json
 
-            rclone copy /data/${{ env.SQL_FILE }} drive: --drive-root-folder-id ${{ secrets.DRIVE_FOLDER_ID }}
-            rclone copy /data/${{ env.DUMP_FILE }} drive: --drive-root-folder-id ${{ secrets.DRIVE_FOLDER_ID }}
+            rclone copy /data/${{ env.SQL_FILE }} drive:Backups\ Asamblea
+            rclone copy /data/${{ env.DUMP_FILE }} drive:Backups\ Asamblea
 
 #      - name: Cleanup old backups (keep 30 days)
 #        uses: addnab/docker-run-action@v3
