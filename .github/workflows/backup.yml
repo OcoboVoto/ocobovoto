@@ -50,10 +50,6 @@ jobs:
             mkdir -p /config/rclone
             printf "%s" "${{ secrets.RCLONE_CONFIG }}" > /config/rclone/rclone.conf
 
-            rclone config create drive drive \
-              scope=drive \
-              service_account_file=/data/service_account.json
-
             rclone copy /data/${{ env.SQL_FILE }} "drive:Backups Asamblea"
             rclone copy /data/${{ env.DUMP_FILE }} "drive:Backups Asamblea"
 
