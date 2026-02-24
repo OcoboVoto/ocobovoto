@@ -59,7 +59,7 @@ export function GraficoTorta({ datos, titulo }: GraficoTortaProps) {
               style={{ backgroundColor: entry.color }}
             />
             <span className="text-sm font-medium">
-              {entry.value}: {entry.payload.porcentaje.toFixed(1)}%
+              {entry.value}: {entry.payload.porcentaje.toFixed(2)}%
             </span>
           </li>
         ))}
@@ -81,7 +81,6 @@ export function GraficoTorta({ datos, titulo }: GraficoTortaProps) {
             cx="50%"
             cy="50%"
             labelLine={false}
-            //label={({ porcentaje }) => `${porcentaje.toFixed(1)}%`}
             outerRadius={100}
             fill="#8884d8"
             dataKey="valor"

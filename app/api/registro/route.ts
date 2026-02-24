@@ -2,6 +2,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { ApiResponse } from '@/types'
+import { publishToChannel } from '@/lib/ably/server'
+import { ABLY_CHANNELS, ABLY_EVENTS } from '@/lib/ably/channel-names'
+
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,7 +16,7 @@ export async function POST(request: NextRequest) {
     // Verificar que la asamblea existe y está activa
     const asamblea = await prisma.asamblea.findUnique({
       where: { id: asambleaId },
-      select: { 
+      select: {
         id: true,
         estado: true,
         conjunto: {
@@ -41,7 +44,7 @@ export async function POST(request: NextRequest) {
 
     // Buscar TODOS los propietarios con esa cédula (puede tener varios aptos)
     const propietarios = await prisma.propietario.findMany({
-      where: { 
+      where: {
         cedula,
         conjuntoId: asamblea.conjunto.id, // Filtrar por conjunto de la asamblea
         activo: true,
@@ -114,7 +117,7 @@ export async function POST(request: NextRequest) {
     propietarios.forEach((prop) => {
       const coefProp = Number(prop.coeficiente)
       coeficienteTotal += coefProp
-      
+
       detalleRepresentados.push({
         id: prop.id,
         cedula: prop.cedula,
@@ -131,7 +134,7 @@ export async function POST(request: NextRequest) {
     poderesRecibidos.forEach((poder) => {
       const coefPoder = Number(poder.propietarioOtorgante.coeficiente)
       coeficienteTotal += coefPoder
-      
+
       detalleRepresentados.push({
         id: poder.propietarioOtorgante.id,
         cedula: poder.propietarioOtorgante.cedula,
@@ -191,6 +194,17 @@ export async function POST(request: NextRequest) {
 
       return { votante, quorumActual: quorumInicial }
     })
+
+    // Publicar en Ably: notificar al admin que hay un nuevo votante registrado
+    await publishToChannel(
+      ABLY_CHANNELS.asamblea(asambleaId),
+      ABLY_EVENTS.ASAMBLEA_UPDATE,
+      {
+        tipo: 'nuevo-registro',
+        quorumActual: resultado.quorumActual,
+        timestamp: new Date().toISOString(),
+      }
+    )
 
     return NextResponse.json<ApiResponse>({
       success: true,

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { supabase } from '@/lib/supabase/createBrowserClient'
 import { ApiResponse } from '@/types'
+import { publishToChannel } from '@/lib/ably/server'
+import { ABLY_CHANNELS, ABLY_EVENTS } from '@/lib/ably/channel-names'
 
 const MAX_CONFIRMACIONES = 2
 
@@ -73,16 +74,17 @@ export async function POST(
 
     const usosRestantes = MAX_CONFIRMACIONES - asambleaActualizada.confirmacionUsada
 
-    //BROADCAST: Notificar a todos los votantes conectados
-    await supabase.channel(`asamblea-${id}`).send({
-      type: 'broadcast',
-      event: 'confirmacion',
-      payload: {
+    // Publicar en Ably: notificar a TODOS los votantes conectados en tiempo real
+    await publishToChannel(
+      ABLY_CHANNELS.asamblea(id),
+      ABLY_EVENTS.CONFIRMACION,
+      {
         confirmacionActivada: true,
         confirmacionCerrada: false,
         confirmacionUsada: asambleaActualizada.confirmacionUsada,
-      },
-    })
+        timestamp: new Date().toISOString(),
+      }
+    )
 
     return NextResponse.json<ApiResponse>({
       success: true,

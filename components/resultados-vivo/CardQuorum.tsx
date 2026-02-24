@@ -81,7 +81,7 @@ function PanelQuorum({
         <GraficoTorta datos={buildDatos(porcentaje)} />
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className={`text-4xl font-extrabold ${color.texto}`}>
-            <AnimatedNumber value={porcentaje} />%
+            <AnimatedNumber value={Number(porcentaje.toFixed(2))} />%
           </div>
         </div>
       </div>
@@ -131,8 +131,8 @@ export function CardQuorum({ quorum }: CardQuorumProps) {
         </h2>
         {mostrarSegundaGrafica && (
           <div className={`flex items-center gap-2 text-sm font-medium px-3 py-1 rounded-full border ${esDefinitivo
-              ? 'text-blue-600 bg-blue-50 border-blue-200'
-              : 'text-green-600 bg-green-50 border-green-200'
+            ? 'text-blue-600 bg-blue-50 border-blue-200'
+            : 'text-green-600 bg-green-50 border-green-200'
             }`}>
             <CheckCircle className="h-4 w-4" />
             {esDefinitivo ? 'Confirmación Completada' : 'Confirmación Activada'}
@@ -149,9 +149,9 @@ export function CardQuorum({ quorum }: CardQuorumProps) {
             titulo="Cierre de Registros"
             subtitulo={
               fechaCierreRegistros ? `Capturado ${new Date(fechaCierreRegistros).toLocaleTimeString('es-CO', {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}`: 'Registro cerrado'
+                hour: '2-digit',
+                minute: '2-digit',
+              })}` : 'Registro cerrado'
             }
             icono={<Lock className="h-4 w-4 text-amber-600" />}
             badge={
@@ -160,7 +160,7 @@ export function CardQuorum({ quorum }: CardQuorumProps) {
               </span>
             }
             porcentaje={quorum.cierre?.porcentaje ?? 0}
-            coeficiente={quorumAlCierreRegistros ?? 0}
+            coeficiente={quorum.cierre?.coeficiente ?? 0}
             votantes={quorum.cierre?.votantes ?? 0}
             labelVotantes="Propietarios al cierre"
           />

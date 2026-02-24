@@ -16,9 +16,11 @@ import { FormularioProposicion } from '@/components/admin/FormularioPregunta'
 import { BotonConfirmarAsistencia } from '@/components/admin/BotonConfirmarAsistencia'
 import { useConfirmDialog } from '@/components/hooks/useConfirmDialog'
 import { GestionPoderes } from '@/components/admin/GestionPoderes'
-import { supabase } from '@/lib/supabase/createBrowserClient'
 import { useRef } from 'react'
 import { BotonCerrarRegistros } from '@/components/admin/BotonCerrarRegistro'
+import { getAblyClient } from '@/lib/ably/client'
+import { ABLY_CHANNELS, ABLY_EVENTS } from '@/lib/ably/channel-names'
+import type { RealtimeChannel } from 'ably'
 
 interface Votante {
   id: string
@@ -105,6 +107,7 @@ export default function DetalleAsambleaPage({
 
   const fromSuper = searchParams.get('from') === 'super'
   const conjuntoId = searchParams.get('conjuntoId')
+  const channelRef = useRef<RealtimeChannel | null>(null)
 
 
   const fetchResultadosProposicion = useCallback(async (proposicionId: string) => {
@@ -152,89 +155,59 @@ export default function DetalleAsambleaPage({
   }, [id])
 
 
-  // RealTime  
+  // Ably RealTime  
   useEffect(() => {
     if (!id) return
 
-    let channelDB: ReturnType<typeof supabase.channel> | null = null
-    let channelBroadcast: ReturnType<typeof supabase.channel> | null = null
 
-    const timeoutId = setTimeout(() => {
-      // Canal 1: postgres_changes 
-      channelDB = supabase
-        .channel(`detalle-asamblea-db-${id}`)
-        .on(
-          'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'votos' },
-          (payload) => {
-            //console.log('[Realtime] Nuevo voto:', payload)
-            const proposicionId =
-              payload.new.proposicionId || payload.new.proposicion_id
+    const setupAbly = async () => {
+      try {
+        const ably = getAblyClient()
+        const channelName = ABLY_CHANNELS.asamblea(id)
+        const channel = ably.channels.get(channelName)
+        channelRef.current = channel
 
-            if (proposicionId) {
-              fetchResultadosProposicion(proposicionId)
-            } else {
-              proposicionesRef.current
-                .filter((p) => p.estado === 'activa' || p.estado === 'cerrada')
-                .forEach((p) => fetchResultadosProposicion(p.id))
-            }
-          }
-        )
-        .on(
-          'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'votantes' },
-          (payload) => {
-            // console.log('[Realtime] Nuevo votante:', payload)
-            const asambleaIdPayload =
-              payload.new.asambleaId || payload.new.asamblea_id
-
-            if (!asambleaIdPayload || asambleaIdPayload === id) {
-              // console.log('[Realtime] Recargando votantes...')
-              fetchAsamblea()
-            }
-          }
-        )
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'proposiciones' },
-          (payload) => {
-            //console.log('[Realtime] Cambio en proposiciones:', payload)
-            fetchAsamblea()
-          }
-        )
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'confirmaciones_asistencia' },
-          (payload) => {
-            //console.log('[Realtime] Cambio en confirmaciones:', payload)
-            fetchAsamblea()
-          }
-        )
-        .subscribe((status) => {
-          // console.log(`[Realtime] Canal DB:`, status)
-        })
-
-      // Canal 2: BROADCAST para cambios en asambleas (evita el 401)  
-      channelBroadcast = supabase
-        .channel(`asamblea-${id}`)
-        .on('broadcast', { event: 'asamblea-update' }, (payload) => {
-          //console.log('[Realtime] Broadcast asamblea-update:', payload.payload)
-          // Recargar toda la asamblea para reflejar cambios  
+        // Escuchar cambios de estado de asamblea (inicio, finalización)
+        channel.subscribe(ABLY_EVENTS.ASAMBLEA_UPDATE, () => {
           fetchAsamblea()
         })
-        .on('broadcast', { event: 'confirmacion' }, (payload) => {
-          //console.log('[Realtime] broadcast confirmacion:', payload.payload)
+
+        // Escuchar eventos de confirmación de asistencia
+        channel.subscribe(ABLY_EVENTS.CONFIRMACION, () => {
           fetchAsamblea()
         })
-        .subscribe((status) => {
-          //console.log('[Realtime] Canal Broadcast:', status)
+
+        // Escuchar actualizaciones de proposiciones (nueva votación, cambio de estado)
+        channel.subscribe(ABLY_EVENTS.PROPOSICION_UPDATE, () => {
+          fetchAsamblea()
         })
-    }, 0)
+
+        // Escuchar votos para actualizar resultados en vivo
+        channel.subscribe(ABLY_EVENTS.VOTO_REGISTRADO, (message) => {
+          const { proposicionId } = message.data || {}
+          if (proposicionId) {
+            fetchResultadosProposicion(proposicionId)
+          } else {
+            // Si no hay ID específico, recargar todo
+            fetchAsamblea()
+          }
+        })
+
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[Ably] Admin suscrito al canal:', channelName)
+        }
+      } catch (error) {
+        console.error('[Ably] Error al conectar en admin:', error)
+      }
+    }
+
+    setupAbly()
 
     return () => {
-      clearTimeout(timeoutId)
-      if (channelDB) supabase.removeChannel(channelDB)
-      if (channelBroadcast) supabase.removeChannel(channelBroadcast)
+      if (channelRef.current) {
+        channelRef.current.unsubscribe()
+        channelRef.current = null
+      }
     }
   }, [id, fetchResultadosProposicion, fetchAsamblea])
 
@@ -337,7 +310,6 @@ export default function DetalleAsambleaPage({
       </AdminLayout>
     )
   }
-
   return (
     <AdminLayout>
       <div className="container mx-auto py-8 px-4 max-w-7xl">
@@ -544,11 +516,11 @@ export default function DetalleAsambleaPage({
                     setAsamblea(prev =>
                       prev
                         ? {
-                            ...prev,
-                            registrosCerrados: true,
-                            quorumAlCierreRegistros: snapshot.quorum,
-                            fechaCierreRegistros: snapshot.fecha,
-                          }
+                          ...prev,
+                          registrosCerrados: true,
+                          quorumAlCierreRegistros: snapshot.quorum,
+                          fechaCierreRegistros: snapshot.fecha,
+                        }
                         : prev
                     )
                   }}

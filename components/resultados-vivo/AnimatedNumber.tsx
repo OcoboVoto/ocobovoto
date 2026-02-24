@@ -11,7 +11,7 @@ interface AnimatedNumberProps {
 export function AnimatedNumber({
   value,
   duration = 800,
-  decimals = 1,
+  decimals = 2,
 }: AnimatedNumberProps) {
   const safeValue = typeof value === 'number' && !isNaN(value) ? value : 0
   const [displayValue, setDisplayValue] = useState(safeValue)
