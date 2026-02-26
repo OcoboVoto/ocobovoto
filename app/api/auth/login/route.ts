@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { AuthService } from '@/lib/services/auth-service'
-import { createClient } from '@/lib/supabase/client'
 import { ApiResponse } from '@/types'
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { email, password } = body
+    const { email, password, conjuntoId } = body
 
-    // Validaciones básicas
     if (!email || !password) {
       return NextResponse.json<ApiResponse>({
         success: false,
@@ -16,21 +14,27 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    // Validar credenciales
-    const result = await AuthService.login({ email, password })
+    const result = await AuthService.login({ email, password, conjuntoId })
 
-    if (!result.success) {
+    // necesita elegir conjunto → devolver lista sin crear sesión
+    if (result.requiresConjuntoSelection) {
+      return NextResponse.json<ApiResponse>({
+        success: false,
+        data: {
+          requiresConjuntoSelection: true,
+          conjuntos: result.conjuntos,
+        },
+        error: 'Selecciona el conjunto a administrar',
+      })
+    }
+
+    if (!result.success || !result.admin) {
       return NextResponse.json<ApiResponse>({
         success: false,
         error: result.error,
       }, { status: 401 })
     }
 
-    // Crear sesión en Supabase
-    const supabase = await createClient()
-    
-    // Usar signInAnonymously o crear un usuario temporal
-    // Por ahora usaremos una sesión simple con cookies
     const response = NextResponse.json<ApiResponse>({
       success: true,
       data: result.admin,
@@ -42,7 +46,7 @@ export async function POST(request: NextRequest) {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 7, // 7 días
+      maxAge: 60 * 60 * 24 * 7,
       path: '/',
     })
 

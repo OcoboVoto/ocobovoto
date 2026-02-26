@@ -18,15 +18,17 @@ export async function PATCH(
     }
 
     const body = await request.json()
-    const { nombre, nit, coeficienteTotal } = body
+    const { nombre, nit, coeficienteTotal, adminId } = body
+
+    const updateData: any = {}
+    if (nombre !== undefined) updateData.nombre = nombre
+    if (nit !== undefined) updateData.nit = nit
+    if (coeficienteTotal !== undefined) updateData.coeficienteTotal = coeficienteTotal
+    if (adminId !== undefined) updateData.adminId = adminId || null
 
     const conjunto = await prisma.conjunto.update({
       where: { id },
-      data: {
-        nombre,
-        nit,
-        coeficienteTotal,
-      },
+      data: updateData
     })
 
     return NextResponse.json<ApiResponse>({

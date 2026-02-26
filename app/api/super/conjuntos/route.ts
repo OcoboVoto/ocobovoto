@@ -61,13 +61,14 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { nombre, nit, coeficienteTotal } = body
+    const { nombre, nit, coeficienteTotal, adminId  } = body
 
     const conjunto = await prisma.conjunto.create({
       data: {
         nombre,
         nit,
         coeficienteTotal,
+        ...(adminId ? { adminId } : {}),
       },
     })
 

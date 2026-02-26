@@ -20,10 +20,11 @@ model Conjunto {
   nit                String              @unique
   coeficienteTotal   Decimal             @map("coeficiente_total") @db.Decimal(10, 4)
   createdAt          DateTime            @default(now()) @map("created_at")
+   adminId           String?             @map("admin_id")
   
   asambleas          Asamblea[]
   propietarios       Propietario[]
-  admin              UsuarioAdmin?
+  admin              UsuarioAdmin?  @relation(fields: [adminId], references: [id])
   
   @@map("conjuntos")
 }
@@ -62,7 +63,7 @@ model UsuarioAdmin {
   createdAt     DateTime  @default(now()) @map("created_at")
   createdBy     String?   @map("created_by")
   
-  conjunto      Conjunto  @relation(fields: [conjuntoId], references: [id], onDelete: Cascade)
+  conjunto      Conjunto[]
   
   @@map("usuarios_admin")
 }

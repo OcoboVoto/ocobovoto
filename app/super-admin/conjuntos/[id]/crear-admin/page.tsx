@@ -45,9 +45,6 @@ export default function CrearAdminPage({
                 const conj = data.data.find((c: any) => c.id === id)
                 if (conj) {
                     setConjunto(conj)
-                    if (conj.admin) {
-                        setError('Este conjunto ya tiene un administrador')
-                    }
                 } else {
                     setError('Conjunto no encontrado')
                 }
