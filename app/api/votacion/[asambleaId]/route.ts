@@ -1,4 +1,4 @@
-// app/api/votacion/[asambleaId]/route.tsx
+// app/api/votacion/[asambleaId]/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { ApiResponse } from '@/types'
@@ -18,7 +18,7 @@ export async function GET(
       }, { status: 400 })
     }
 
-    // UNA SOLA QUERY: Votante + Proposiciones + Votos en un solo round-trip
+    // Query 1: Votante + sus votos ya emitidos
     const votante = await prisma.votante.findUnique({
       where: {
         asambleaId_cedula: {
@@ -45,26 +45,24 @@ export async function GET(
         error: 'No estás registrado en esta asamblea',
       }, { status: 403 })
     }
-    
-    // obtener modalidad y linkZoom de la asamblea 
+
+    // Query 2: Asamblea - estado + modalidad + confirmación
+    // Se incluye confirmacionActivada para que el polling lo detecte
     const asamblea = await prisma.asamblea.findUnique({
       where: { id: asambleaId },
       select: {
         modalidad: true,
         linkZoom: true,
+        estado: true,
+        confirmacionActivada: true,
+        confirmacionCerrada: true,
       },
     })
 
-    // Extraer votos y limpiar el objeto votante
+    // Query 3: Solo proposiciones activas (las que el votante puede ver ahora)
     const proposicionesVotadas = new Set(votante.votos.map(v => v.proposicionId))
     const { votos: _, ...votanteLimpio } = votante
 
-    const votanteResponse = {
-      ...votanteLimpio,
-      coeficienteTotal: Number(votanteLimpio.coeficienteTotal),
-    }
-
-    // Segunda query: proposiciones activas (inevitable, distinta tabla raíz)
     const proposiciones = await prisma.proposicion.findMany({
       where: {
         asambleaId,
@@ -96,8 +94,15 @@ export async function GET(
     return NextResponse.json<ApiResponse>({
       success: true,
       data: {
-        votante: votanteResponse,
+        votante: {
+          ...votanteLimpio,
+          coeficienteTotal: Number(votanteLimpio.coeficienteTotal),
+        },
         proposiciones: proposicionesConEstado,
+        // Campos nuevos para el polling — el hook los usa para detectar cambios
+        confirmacionActivada: asamblea?.confirmacionActivada ?? false,
+        confirmacionCerrada: asamblea?.confirmacionCerrada ?? false,
+        asambleaEstado: asamblea?.estado ?? 'activa',
         modalidad: asamblea?.modalidad ?? null,
         linkZoom: asamblea?.linkZoom ?? null
       },
@@ -109,5 +114,5 @@ export async function GET(
       success: false,
       error: 'Error interno',
     }, { status: 500 })
-    }
+  }
 }
