@@ -3,7 +3,7 @@
 import { use, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { CheckCircle2, AlertCircle, Users, Building, MapPin, Percent, Monitor, Home } from 'lucide-react'
+import { CheckCircle2, AlertCircle, Users, Building, MapPin, Percent, Monitor, Home, UserX } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { useRouter } from 'next/navigation'
 
@@ -14,6 +14,7 @@ interface PropietarioConPoderes {
   torreManzana: string
   aptoCasa: string
   coeficiente: number
+  esPropietario: boolean
   poderesOtorgados: Array<{
     id: string
     otorgante: {
@@ -192,36 +193,68 @@ export default function RegistroPage({
     }
   }
 
+  // ── Subtexto del resumen de coeficiente ──────────────────────────────────
+
+  const getResumenCoeficiente = (): string => {
+    if (!propietario) return ''
+
+    const { esPropietario, cantidadUnidades, poderesOtorgados } = propietario
+    const numPoderes = poderesOtorgados.length
+
+    if (!esPropietario) {
+      // Apoderado externo: solo tiene poderes
+      return `(${numPoderes} ${numPoderes === 1 ? 'poder' : 'poderes'} representados)`
+    }
+
+    if (cantidadUnidades > 1 && numPoderes > 0) {
+      return `(${cantidadUnidades} unidades + ${numPoderes} ${numPoderes === 1 ? 'poder' : 'poderes'})`
+    }
+    if (cantidadUnidades > 1) {
+      return `(${cantidadUnidades} unidades propias)`
+    }
+    if (numPoderes > 0) {
+      return `(1 propio + ${numPoderes} ${numPoderes === 1 ? 'poder' : 'poderes'})`
+    }
+    return '(solo coeficiente propio)'
+  }
+
   // Pantalla de éxito
-  if (registrado) {
+
+  if (registrado && propietario) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-emerald-100 px-4">
         <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center">
           <div className="inline-flex items-center justify-center w-20 h-20 bg-green-100 rounded-full mb-6">
             <CheckCircle2 className="w-12 h-12 text-green-600" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            ¡Registro Exitoso!
-          </h1>
-          <p className="text-gray-600 mb-6">
-            {propietario?.nombreCompleto}
-          </p>
-          <div className="bg-green-50 rounded-lg p-4 mb-6">
-            <p className="text-sm text-green-800">
-              Ya puedes participar en las votaciones de la asamblea
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">¡Registro Exitoso!</h1>
+
+          <p className="text-gray-600 mb-1">{propietario.nombreCompleto}</p>
+
+          {/* Badge diferenciado para externo vs propietario */}
+          {propietario.esPropietario ? (
+            <p className="text-sm text-gray-500 mb-4">{propietario.aptoCasa}</p>
+          ) : (
+            <div className="flex justify-center mb-4">
+              <Badge className="bg-amber-100 text-amber-800 border border-amber-300 text-xs">
+                Apoderado externo
+              </Badge>
+            </div>
+          )}
+
+          <div className="bg-green-50 rounded-xl p-4 mb-6 border border-green-200">
+            <p className="text-sm text-green-700 mb-1">Coeficiente registrado</p>
+            <p className="text-3xl font-bold text-green-800">
+              {Number(propietario.coeficienteTotal).toFixed(2)}%
             </p>
-            <p className="text-xs text-green-700 mt-2">
-              Votarás con un coeficiente total de {Number(propietario?.coeficienteTotal).toFixed(4)}%
-              {propietario && propietario.cantidadUnidades > 1 && (
-                <span> ({propietario.cantidadUnidades} unidades)</span>
-              )}
-              {propietario && propietario.poderesOtorgados.length > 0 && (
-                <span> + {propietario.poderesOtorgados.length} {propietario.poderesOtorgados.length === 1 ? 'poder' : 'poderes'}</span>
-              )}
-            </p>
+            {propietario.tienePoderes && (
+              <p className="text-xs text-green-600 mt-1">
+                Representa {propietario.poderesOtorgados.length}{' '}
+                {propietario.poderesOtorgados.length === 1 ? 'poder' : 'poderes'}
+              </p>
+            )}
           </div>
 
-          {/* BOTONES ACTUALIZADOS */}
           <div className="space-y-3">
             <Button
               onClick={() => router.push(`/votar/${asambleaId}`)}
@@ -250,6 +283,7 @@ export default function RegistroPage({
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 px-4">
       <div className="max-w-md w-full">
         <div className="bg-white rounded-2xl shadow-xl p-8">
+
           {/* Header */}
           <div className="text-center mb-8">
             <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-600 rounded-full mb-4">
@@ -258,12 +292,10 @@ export default function RegistroPage({
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
               Registro de Asistencia
             </h1>
-            <p className="text-gray-600">
-              Ingresa tu cédula para registrarte
-            </p>
+            <p className="text-gray-600">Ingresa tu cédula para registrarte</p>
           </div>
 
-          {/* Error Message */}
+          {/* Error */}
           {error && (
             <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
               <div className="flex items-start gap-2">
@@ -273,7 +305,7 @@ export default function RegistroPage({
             </div>
           )}
 
-          {/* Formulario de Cédula */}
+          {/* Formulario de búsqueda */}
           {!propietario && (
             <div className="space-y-4">
               <div>
@@ -286,10 +318,8 @@ export default function RegistroPage({
                   onChange={(e) => setCedula(e.target.value.replace(/\D/g, ''))}
                   placeholder="1234567890"
                   maxLength={12}
-                  onKeyPress={(e) => {
-                    if (e.key === 'Enter') {
-                      buscarPropietario()
-                    }
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') buscarPropietario()
                   }}
                 />
               </div>
@@ -304,116 +334,153 @@ export default function RegistroPage({
             </div>
           )}
 
-          {/* Datos del Propietario */}
+          {/* Tarjeta de datos encontrados */}
           {propietario && (
             <div className="space-y-6">
-              <div className="bg-indigo-50 rounded-lg p-4 border-2 border-indigo-200">
-                <h3 className="font-semibold text-indigo-900 mb-3 flex items-center gap-2">
-                  <Users className="h-5 w-5" />
-                  Datos Encontrados
+              <div className={`rounded-lg p-4 border-2 ${propietario.esPropietario
+                  ? 'bg-indigo-50 border-indigo-200'
+                  : 'bg-amber-50 border-amber-200'
+                }`}>
+
+                {/* Título de la tarjeta */}
+                <h3 className={`font-semibold mb-3 flex items-center gap-2 ${propietario.esPropietario ? 'text-indigo-900' : 'text-amber-900'
+                  }`}>
+                  {propietario.esPropietario
+                    ? <Users className="h-5 w-5" />
+                    : <UserX className="h-5 w-5" />
+                  }
+                  {propietario.esPropietario ? 'Propietario encontrado' : 'Apoderado externo'}
+
+                  {/* Badge visible de tipo */}
+                  {!propietario.esPropietario && (
+                    <Badge className="ml-auto bg-amber-200 text-amber-900 text-xs border-0">
+                      No propietario
+                    </Badge>
+                  )}
                 </h3>
+
                 <div className="space-y-3 text-sm">
-                  {/* Datos Personales */}
+
+                  {/* Datos personales */}
                   <div className="bg-white rounded-lg p-3">
                     <div className="flex items-start gap-2 mb-2">
                       <Users className="h-4 w-4 text-gray-500 mt-0.5" />
                       <div className="flex-1">
-                        <p className="font-medium text-gray-900">
-                          {propietario.nombreCompleto}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          CC: {propietario.cedula}
-                        </p>
+                        <p className="font-medium text-gray-900">{propietario.nombreCompleto}</p>
+                        <p className="text-xs text-gray-500">CC: {propietario.cedula}</p>
                       </div>
                     </div>
 
-                    {/* Mostrar unidades */}
-                    <div className="flex items-start gap-2">
-                      <Home className="h-4 w-4 text-gray-500 mt-0.5" />
-                      <div className="flex-1">
-                        {propietario.cantidadUnidades === 1 ? (
-                          <p className="text-gray-700">
-                            {propietario.aptoCasa}
-                          </p>
-                        ) : (
-                          <div>
-                            <p className="text-gray-700 font-medium mb-1">
-                              {propietario.cantidadUnidades} unidades:
-                            </p>
-                            <div className="flex flex-wrap gap-1">
-                              {propietario.unidades.map((unidad, idx) => (
-                                <Badge key={idx} variant="secondary" className="text-xs">
-                                  {unidad}
-                                </Badge>
-                              ))}
+                    {/* Unidad: solo si es propietario */}
+                    {propietario.esPropietario && (
+                      <div className="flex items-start gap-2">
+                        <Home className="h-4 w-4 text-gray-500 mt-0.5" />
+                        <div className="flex-1">
+                          {propietario.cantidadUnidades === 1 ? (
+                            <p className="text-gray-700">{propietario.aptoCasa}</p>
+                          ) : (
+                            <div>
+                              <p className="text-gray-700 font-medium mb-1">
+                                {propietario.cantidadUnidades} unidades:
+                              </p>
+                              <div className="flex flex-wrap gap-1">
+                                {propietario.unidades.map((unidad, idx) => (
+                                  <Badge key={idx} variant="secondary" className="text-xs">
+                                    {unidad}
+                                  </Badge>
+                                ))}
+                              </div>
                             </div>
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
-                    </div>
+                    )}
+
+                    {/* Aviso visible cuando es externo */}
+                    {!propietario.esPropietario && (
+                      <div className="flex items-start gap-2 mt-2">
+                        <AlertCircle className="h-4 w-4 text-amber-500 mt-0.5" />
+                        <p className="text-xs text-amber-700">
+                          Esta persona no es propietaria del conjunto, pero tiene poderes vigentes para esta asamblea.
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   {/* Coeficientes */}
                   <div className="bg-white rounded-lg p-3 space-y-2">
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center gap-2">
-                        <Percent className="h-4 w-4 text-gray-500" />
-                        <span className="text-gray-700">
-                          Coeficiente {propietario.cantidadUnidades > 1 ? `(${propietario.cantidadUnidades} unidades)` : 'propio'}:
-                        </span>
-                      </div>
-                      <span className="font-medium text-gray-900">
-                        {Number(propietario.coeficiente).toFixed(4)}%
-                      </span>
-                    </div>
-
-                    {propietario.poderesOtorgados.length > 0 && (
+                    {/* Coeficiente propio (solo si es propietario) */}
+                    {propietario.esPropietario && (
                       <div className="flex justify-between items-center">
-                        <span className="text-gray-700 pl-6">Coef. por poderes:</span>
+                        <div className="flex items-center gap-2">
+                          <Percent className="h-4 w-4 text-gray-500" />
+                          <span className="text-gray-700">
+                            Coeficiente{propietario.cantidadUnidades > 1 ? ` (${propietario.cantidadUnidades} unidades)` : ' propio'}:
+                          </span>
+                        </div>
                         <span className="font-medium text-gray-900">
-                          {(Number(propietario.coeficienteTotal) - Number(propietario.coeficiente)).toFixed(4)}%
+                          {Number(propietario.coeficiente).toFixed(2)}%
                         </span>
                       </div>
                     )}
 
+                    {/* Coeficiente por poderes */}
+                    {propietario.poderesOtorgados.length > 0 && (
+                      <div className="flex justify-between items-center">
+                        <span className={`text-gray-700 ${propietario.esPropietario ? 'pl-6' : 'flex items-center gap-2'}`}>
+                          {!propietario.esPropietario && <Percent className="h-4 w-4 text-gray-500" />}
+                          Coef. por poderes:
+                        </span>
+                        <span className="font-medium text-gray-900">
+                          {propietario.esPropietario
+                            ? (Number(propietario.coeficienteTotal) - Number(propietario.coeficiente)).toFixed(2)
+                            : Number(propietario.coeficienteTotal).toFixed(2)
+                          }%
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Total */}
                     {(propietario.poderesOtorgados.length > 0 || propietario.cantidadUnidades > 1) && (
                       <div className="pt-2 border-t flex justify-between items-center">
                         <span className="font-semibold text-gray-900">Coeficiente total:</span>
-                        <Badge variant="default" className="text-base bg-indigo-600">
-                          {Number(propietario.coeficienteTotal).toFixed(4)}%
+                        <Badge
+                          variant="default"
+                          className={`text-base ${propietario.esPropietario ? 'bg-indigo-600' : 'bg-amber-600'}`}
+                        >
+                          {Number(propietario.coeficienteTotal).toFixed(2)}%
                         </Badge>
                       </div>
                     )}
                   </div>
 
-                  {/* Detalle de Poderes */}
+                  {/* Detalle de poderes */}
                   {propietario.poderesOtorgados.length > 0 && (
-                    <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
-                      <p className="font-medium text-blue-900 mb-2 flex items-center gap-2">
+                    <div className={`rounded-lg p-3 border ${propietario.esPropietario
+                        ? 'bg-blue-50 border-blue-200'
+                        : 'bg-amber-100 border-amber-300'
+                      }`}>
+                      <p className={`font-medium mb-2 flex items-center gap-2 ${propietario.esPropietario ? 'text-blue-900' : 'text-amber-900'
+                        }`}>
                         <Users className="h-4 w-4" />
                         Representa a {propietario.poderesOtorgados.length}{' '}
                         {propietario.poderesOtorgados.length === 1 ? 'propietario' : 'propietarios'}:
                       </p>
                       <div className="space-y-2">
                         {propietario.poderesOtorgados.map((poder) => (
-                          <div
-                            key={poder.id}
-                            className="bg-white rounded p-2 text-xs"
-                          >
+                          <div key={poder.id} className="bg-white rounded p-2 text-xs">
                             <div className="flex justify-between items-start">
                               <div>
                                 <p className="font-medium text-gray-900">
                                   {poder.otorgante.nombreCompleto}
                                 </p>
-                                <p className="text-gray-500">
-                                  CC: {poder.otorgante.cedula}
-                                </p>
+                                <p className="text-gray-500">CC: {poder.otorgante.cedula}</p>
                                 <p className="text-gray-500">
                                   {poder.otorgante.torreManzana} - {poder.otorgante.aptoCasa}
                                 </p>
                               </div>
                               <Badge variant="outline" className="text-xs">
-                                {Number(poder.otorgante.coeficiente).toFixed(4)}%
+                                {Number(poder.otorgante.coeficiente).toFixed(2)}%
                               </Badge>
                             </div>
                           </div>
@@ -422,28 +489,28 @@ export default function RegistroPage({
                     </div>
                   )}
 
-                  {/* Resumen de Voto */}
-                  <div className="bg-indigo-100 rounded-lg p-3 text-center border border-indigo-300">
-                    <p className="text-xs text-indigo-700 mb-1">
+                  {/* Resumen de voto */}
+                  <div className={`rounded-lg p-3 text-center border ${propietario.esPropietario
+                      ? 'bg-indigo-100 border-indigo-300'
+                      : 'bg-amber-100 border-amber-300'
+                    }`}>
+                    <p className={`text-xs mb-1 ${propietario.esPropietario ? 'text-indigo-700' : 'text-amber-700'
+                      }`}>
                       Votarás con un total de:
                     </p>
-                    <p className="text-2xl font-bold text-indigo-900">
-                      {Number(propietario.coeficienteTotal).toFixed(4)}%
+                    <p className={`text-2xl font-bold ${propietario.esPropietario ? 'text-indigo-900' : 'text-amber-900'
+                      }`}>
+                      {Number(propietario.coeficienteTotal).toFixed(2)}%
                     </p>
-                    <p className="text-xs text-indigo-600">
-                      {propietario.cantidadUnidades > 1 && propietario.poderesOtorgados.length > 0
-                        ? `(${propietario.cantidadUnidades} ${propietario.cantidadUnidades === 1 ? 'unidad' : 'unidades'} + ${propietario.poderesOtorgados.length} ${propietario.poderesOtorgados.length === 1 ? 'poder' : 'poderes'})`
-                        : propietario.cantidadUnidades > 1
-                        ? `(${propietario.cantidadUnidades} unidades propias)`
-                        : propietario.poderesOtorgados.length > 0
-                        ? `(1 propio + ${propietario.poderesOtorgados.length} ${propietario.poderesOtorgados.length === 1 ? 'poder' : 'poderes'})`
-                        : '(solo coeficiente propio)'}
+                    <p className={`text-xs mt-1 ${propietario.esPropietario ? 'text-indigo-600' : 'text-amber-700'
+                      }`}>
+                      {getResumenCoeficiente()}
                     </p>
                   </div>
                 </div>
               </div>
 
-              {/* Modalidad */}
+              {/* Selector de modalidad (solo en híbrida) */}
               {esHibrida && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -451,37 +518,38 @@ export default function RegistroPage({
                   </label>
                   <div className="grid grid-cols-2 gap-3">
                     <button
+                      type="button"
                       onClick={() => setModalidad('presencial')}
-                      className={`p-4 rounded-lg border-2 transition-colors ${
-                        modalidad === 'presencial'
-                          ? 'border-indigo-600 bg-indigo-50'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
+                      className={`p-3 rounded-lg border-2 text-sm font-medium transition-colors ${modalidad === 'presencial'
+                          ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                          : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                        }`}
                     >
-                      <Building className={`h-6 w-6 mx-auto mb-2 ${modalidad === 'presencial' ? 'text-indigo-600' : 'text-gray-400'}`} />
-                      <p className={`text-sm font-medium ${modalidad === 'presencial' ? 'text-indigo-900' : 'text-gray-700'}`}>
-                        Presencial
-                      </p>
+                      Presencial
                     </button>
                     <button
+                      type="button"
                       onClick={() => setModalidad('virtual')}
-                      className={`p-4 rounded-lg border-2 transition-colors ${
-                        modalidad === 'virtual'
-                          ? 'border-indigo-600 bg-indigo-50'
-                          : 'border-gray-200 hover:border-gray-300'
-                      }`}
+                      className={`p-3 rounded-lg border-2 text-sm font-medium transition-colors ${modalidad === 'virtual'
+                          ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                          : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                        }`}
                     >
-                      <Monitor className={`h-6 w-6 mx-auto mb-2 ${modalidad === 'virtual' ? 'text-indigo-600' : 'text-gray-400'}`} />
-                      <p className={`text-sm font-medium ${modalidad === 'virtual' ? 'text-indigo-900' : 'text-gray-700'}`}>
-                        Virtual
-                      </p>
+                      Virtual
                     </button>
                   </div>
                 </div>
               )}
 
-              {/* Botones */}
-              <div className="flex gap-3">
+              {/* Botones de acción */}
+              <div className="space-y-3">
+                <Button
+                  onClick={handleRegistro}
+                  disabled={loading}
+                  className={`w-full ${!propietario.esPropietario ? 'bg-amber-600 hover:bg-amber-700' : ''}`}
+                >
+                  {loading ? 'Registrando...' : 'Confirmar Registro'}
+                </Button>
                 <Button
                   onClick={() => {
                     setPropietario(null)
@@ -489,20 +557,15 @@ export default function RegistroPage({
                     setError('')
                   }}
                   variant="outline"
-                  className="flex-1"
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  onClick={handleRegistro}
+                  className="w-full"
                   disabled={loading}
-                  className="flex-1"
                 >
-                  {loading ? 'Registrando...' : 'Confirmar Registro'}
+                  Buscar otra cédula
                 </Button>
               </div>
             </div>
           )}
+
         </div>
       </div>
     </div>
