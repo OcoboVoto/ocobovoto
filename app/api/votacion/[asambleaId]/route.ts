@@ -18,26 +18,35 @@ export async function GET(
       }, { status: 400 })
     }
 
-    // Query 1: Votante + sus votos ya emitidos
-    const votante = await prisma.votante.findUnique({
-      where: {
-        asambleaId_cedula: {
-          asambleaId,
-          cedula,
+    // Queries 1 y 2 en paralelo — no dependen una de la otra
+    const [votante, asamblea] = await Promise.all([
+      prisma.votante.findUnique({
+        where: {
+          asambleaId_cedula: { asambleaId, cedula },
         },
-      },
-      select: {
-        id: true,
-        cedula: true,
-        nombreCompleto: true,
-        coeficienteTotal: true,
-        confirmoAsistencia: true,
-        propietariosRepresenta: true,
-        votos: {
-          select: { proposicionId: true },
+        select: {
+          id: true,
+          cedula: true,
+          nombreCompleto: true,
+          coeficienteTotal: true,
+          confirmoAsistencia: true,
+          propietariosRepresenta: true,
+          votos: {
+            select: { proposicionId: true },
+          },
         },
-      },
-    })
+      }),
+      prisma.asamblea.findUnique({
+        where: { id: asambleaId },
+        select: {
+          modalidad: true,
+          linkZoom: true,
+          estado: true,
+          confirmacionActivada: true,
+          confirmacionCerrada: true,
+        },
+      }),
+    ])
 
     if (!votante) {
       return NextResponse.json<ApiResponse>({
@@ -46,20 +55,8 @@ export async function GET(
       }, { status: 403 })
     }
 
-    // Query 2: Asamblea - estado + modalidad + confirmación
-    // Se incluye confirmacionActivada para que el polling lo detecte
-    const asamblea = await prisma.asamblea.findUnique({
-      where: { id: asambleaId },
-      select: {
-        modalidad: true,
-        linkZoom: true,
-        estado: true,
-        confirmacionActivada: true,
-        confirmacionCerrada: true,
-      },
-    })
-
-    // Query 3: Solo proposiciones activas (las que el votante puede ver ahora)
+    // Query 3: proposiciones activas — va después porque es lógicamente independiente
+    // pero necesitamos que votante exista para no desperdiciar la query
     const proposicionesVotadas = new Set(votante.votos.map(v => v.proposicionId))
     const { votos: _, ...votanteLimpio } = votante
 
@@ -75,21 +72,12 @@ export async function GET(
         descripcion: true,
         tipoPregunta: true,
         opciones: {
-          select: {
-            id: true,
-            texto: true,
-            codigo: true,
-          },
+          select: { id: true, texto: true, codigo: true },
           orderBy: { orden: 'asc' },
         },
       },
       orderBy: { numeroOrden: 'asc' },
     })
-
-    const proposicionesConEstado = proposiciones.map(prop => ({
-      ...prop,
-      yaVoto: proposicionesVotadas.has(prop.id),
-    }))
 
     return NextResponse.json<ApiResponse>({
       success: true,
@@ -98,13 +86,15 @@ export async function GET(
           ...votanteLimpio,
           coeficienteTotal: Number(votanteLimpio.coeficienteTotal),
         },
-        proposiciones: proposicionesConEstado,
-        // Campos nuevos para el polling — el hook los usa para detectar cambios
+        proposiciones: proposiciones.map(prop => ({
+          ...prop,
+          yaVoto: proposicionesVotadas.has(prop.id),
+        })),
         confirmacionActivada: asamblea?.confirmacionActivada ?? false,
         confirmacionCerrada: asamblea?.confirmacionCerrada ?? false,
         asambleaEstado: asamblea?.estado ?? 'activa',
         modalidad: asamblea?.modalidad ?? null,
-        linkZoom: asamblea?.linkZoom ?? null
+        linkZoom: asamblea?.linkZoom ?? null,
       },
     })
 
