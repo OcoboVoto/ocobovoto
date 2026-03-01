@@ -1,14 +1,28 @@
 //app/votar/[asambleaId]//page.tsx
 'use client'
 
-'use client'
-
-import { use, useCallback, useEffect, useState } from 'react'
+import { use, useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { CheckCircle2, AlertCircle, Vote, LogOut, UserCheck, Video, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
-import { useVotacionPolling } from '@/components/hooks/use-votacion-polling'
+import { getAblyClient } from '@/lib/ably/client'
+import { ABLY_CHANNELS, ABLY_EVENTS } from '@/lib/ably/channel-names'
+import type { RealtimeChannel } from 'ably'
+
+interface Proposicion {
+    id: string
+    numeroOrden: number
+    titulo: string
+    descripcion: string
+    tipoPregunta: string
+    opciones: Array<{
+        id: string
+        texto: string
+        codigo: string
+    }>
+    yaVoto: boolean
+}
 
 interface Votante {
     id: string
@@ -22,40 +36,33 @@ export default function VotacionPage({
 }: {
     params: Promise<{ asambleaId: string }>
 }) {
-    const { asambleaId } = use(params)
     const [inicializando, setInicializando] = useState(true)
+    const { asambleaId } = use(params)
     const [cedula, setCedula] = useState('')
-    const [cedulaActiva, setCedulaActiva] = useState<string | null>(null) // cedula autenticada
     const [autenticado, setAutenticado] = useState(false)
     const [votante, setVotante] = useState<Votante | null>(null)
+    const [proposiciones, setProposiciones] = useState<Proposicion[]>([])
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
     const [votando, setVotando] = useState<string | null>(null)
     const [mostrarAlertaConfirmacion, setMostrarAlertaConfirmacion] = useState(false)
     const [confirmando, setConfirmando] = useState(false)
+    const [modalidadAsamblea, setModalidadAsamblea] = useState<string | null>(null)
+    const [linkZoom, setLinkZoom] = useState<string | null>(null)
+    const ablyChannelRef = useRef<RealtimeChannel | null>(null)
 
-    // ─── POLLING (reemplaza Ably WebSocket) ───────────────────────────────────
-    // Solo activo cuando el votante está autenticado.
-    // Hace 1 request HTTP cada 5s → 58 req/s con 290 personas. Vercel lo maneja sin problema.
-    const { estado, cargando: pollingCargando, refrescarAhora } = useVotacionPolling({
-        asambleaId,
-        cedula: cedulaActiva,
-        activo: autenticado,
-        intervalo: 5000,
-    })
-
-    // Detectar cambio en confirmación de asistencia via polling
-    useEffect(() => {
-        if (!estado || !votante) return
-
-        if (estado.confirmacionActivada && !votante.confirmoAsistencia) {
-            setMostrarAlertaConfirmacion(true)
+    //Helpers 
+    const refrescarProposiciones = useCallback(async (cedulaValue: string) => {
+        try {
+            const response = await fetch(`/api/votacion/${asambleaId}?cedula=${cedulaValue}`)
+            const data = await response.json()
+            if (data.success) {
+                setProposiciones(data.data.proposiciones)
+            }
+        } catch (err) {
+            console.error('[Ably] Error refrescando proposiciones:', err)
         }
-        if (!estado.confirmacionActivada || estado.asambleaEstado === 'finalizada') {
-            setMostrarAlertaConfirmacion(false)
-        }
-    }, [estado?.confirmacionActivada, estado?.asambleaEstado, votante])
-    // ──────────────────────────────────────────────────────────────────────────
+    }, [asambleaId])
 
     const autenticarConCedula = useCallback(async (cedulaValue: string) => {
         if (cedulaValue.length < 6) {
@@ -71,11 +78,14 @@ export default function VotacionPage({
 
             if (data.success) {
                 setCedula(cedulaValue)
-                setCedulaActiva(cedulaValue) // activa el polling
                 setVotante(data.data.votante)
+                setProposiciones(data.data.proposiciones)
                 setAutenticado(true)
+                setModalidadAsamblea(data.data.modalidad ?? null)
+                setLinkZoom(data.data.linkZoom ?? null)
                 sessionStorage.setItem('cedula_votante', cedulaValue)
 
+                // Verificar si la confirmación ya está activa al momento de autenticarse
                 if (data.data.confirmacionActivada && !data.data.votante.confirmoAsistencia) {
                     setMostrarAlertaConfirmacion(true)
                 }
@@ -83,7 +93,7 @@ export default function VotacionPage({
                 setError(data.error || 'Cédula no encontrada en esta asamblea')
                 sessionStorage.removeItem('cedula_votante')
             }
-        } catch {
+        } catch (err) {
             setError('Error de conexión. Intenta nuevamente.')
         } finally {
             setLoading(false)
@@ -93,13 +103,18 @@ export default function VotacionPage({
     const autenticar = () => autenticarConCedula(cedula)
 
     const cerrarSesion = () => {
-        // Sin Ably no hay nada que limpiar — solo estado local
-        setCedulaActiva(null) // detiene el polling
+        // Limpiar canal Ably antes de cerrar sesión
+        if (ablyChannelRef.current) {
+            ablyChannelRef.current.unsubscribe()
+            ablyChannelRef.current = null
+        }
         sessionStorage.removeItem('cedula_votante')
         setAutenticado(false)
         setCedula('')
         setVotante(null)
-        setMostrarAlertaConfirmacion(false)
+        setProposiciones([])
+        setModalidadAsamblea(null)
+        setLinkZoom(null)
     }
 
     const confirmarAsistencia = async () => {
@@ -119,20 +134,23 @@ export default function VotacionPage({
             const data = await response.json()
 
             if (data.success) {
-                setVotante(prev => prev ? { ...prev, confirmoAsistencia: true } : null)
+                setVotante(prev => prev ? {
+                    ...prev,
+                    confirmoAsistencia: true,
+                } : null)
                 setMostrarAlertaConfirmacion(false)
                 toast.success('Asistencia confirmada exitosamente')
             } else {
                 toast.error('Error al confirmar asistencia: ' + data.error)
             }
-        } catch {
+        } catch (error) {
             toast.error('Error al confirmar asistencia')
         } finally {
             setConfirmando(false)
         }
     }
 
-    // Auto-autenticar con sesión guardada
+    //Auto-autenticar 
     useEffect(() => {
         const restaurarSesion = async () => {
             const cedulaGuardada = sessionStorage.getItem('cedula_votante')
@@ -143,6 +161,96 @@ export default function VotacionPage({
         }
         restaurarSesion()
     }, [asambleaId, autenticarConCedula])
+
+    // Ably REALTIME
+    useEffect(() => {
+        if (!autenticado || !cedula || !votante) return
+
+        const setupAbly = async () => {
+            try {
+                const ably = getAblyClient()
+                const channelName = ABLY_CHANNELS.asamblea(asambleaId)
+                const channel = ably.channels.get(channelName)
+                ablyChannelRef.current = channel
+
+                // Evento: nueva proposición o cambio de estado (abrir/cerrar votación)
+                channel.subscribe(ABLY_EVENTS.PROPOSICION_UPDATE, async () => {
+                    await refrescarProposiciones(cedula)
+                })
+
+                // Evento: un voto fue registrado — actualizar estado local si es del votante actual
+                // (El server también puede publicar esto con el votante_id)
+                channel.subscribe(ABLY_EVENTS.VOTO_REGISTRADO, (message) => {
+                    const { votanteId, proposicionId } = message.data || {}
+                    // Solo actualizar si es el voto de ESTE votante
+                    if (votanteId === votante.id && proposicionId) {
+                        setProposiciones(props =>
+                            props.map(p =>
+                                p.id === proposicionId ? { ...p, yaVoto: true } : p
+                            )
+                        )
+                    }
+                })
+
+                // Evento: confirmación de asistencia activada o cerrada por el admin
+                channel.subscribe(ABLY_EVENTS.CONFIRMACION, (message) => {
+                    const data = message.data || {}
+
+                    if (data.confirmacionActivada && !votante.confirmoAsistencia) {
+                        setMostrarAlertaConfirmacion(true)
+                    }
+
+                    if (!data.confirmacionActivada || data.confirmacionCerrada) {
+                        setMostrarAlertaConfirmacion(false)
+                    }
+                })
+
+                // Evento: cambio de estado de la asamblea (ej: finalizada)
+                channel.subscribe(ABLY_EVENTS.ASAMBLEA_UPDATE, async (message) => {
+                    const data = message.data || {}
+                    if (data.estado === 'finalizada') {
+                        // Refrescar proposiciones para reflejar cierre de votaciones
+                        await refrescarProposiciones(cedula)
+                    }
+                })
+
+                if (process.env.NODE_ENV === 'development') {
+                    console.log('[Ably] Votante suscrito al canal:', channelName)
+                }
+            } catch (err) {
+                console.error('[Ably] Error al conectar en página de votación:', err)
+            }
+        }
+
+        // Verificación inicial (solo 1 vez)
+        /*const verificarConfirmacionInicial = async () => {
+            try {
+                const response = await fetch(`/api/asambleas/${asambleaId}`)
+                const data = await response.json()
+                if (data.success && data.data.confirmacionActivada && !data.data.confirmacionCerrada) {
+                    const yaConfirmo = data.data.votantes?.find(
+                        (v: any) => v.id === votante.id
+                    )
+                    if (yaConfirmo && !yaConfirmo.confirmoAsistencia) {
+                        setMostrarAlertaConfirmacion(true)
+                    }
+                }
+            } catch (error) {
+                console.error('Error al verificar confirmación:', error)
+            }
+        }
+
+        verificarConfirmacionInicial()*/
+
+        setupAbly()
+
+        return () => {
+            if (ablyChannelRef.current) {
+                ablyChannelRef.current.unsubscribe()
+                ablyChannelRef.current = null
+            }
+        }
+    }, [autenticado, cedula, votante, asambleaId, refrescarProposiciones])
 
     const emitirVoto = async (proposicionId: string, opcionId: string) => {
         if (!cedula || votando) return
@@ -164,14 +272,18 @@ export default function VotacionPage({
             const data = await response.json()
 
             if (data.success) {
+                // Marcar como votada
+                setProposiciones(props =>
+                    props.map(p =>
+                        p.id === proposicionId ? { ...p, yaVoto: true } : p
+                    )
+                )
                 toast.success('¡Voto registrado exitosamente!')
-                // Refrescar inmediatamente después de votar para actualizar yaVoto
-                refrescarAhora()
             } else {
                 toast.error('Error al votar: ' + (data.error || 'Error desconocido'))
                 setError(data.error)
             }
-        } catch {
+        } catch (error) {
             toast.error('Error de conexión al votar')
             setError('Error al registrar voto')
         } finally {
@@ -179,7 +291,7 @@ export default function VotacionPage({
         }
     }
 
-    // ─── RENDER ───────────────────────────────────────────────────────────────
+    // RENDER 
 
     if (inicializando) {
         return (
@@ -198,8 +310,12 @@ export default function VotacionPage({
                         <div className="inline-flex items-center justify-center w-16 h-16 bg-purple-600 rounded-full mb-4">
                             <Vote className="w-8 h-8 text-white" />
                         </div>
-                        <h1 className="text-3xl font-bold text-gray-900 mb-2">Panel de Votación</h1>
-                        <p className="text-gray-600">Ingresa tu cédula para votar</p>
+                        <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                            Panel de Votación
+                        </h1>
+                        <p className="text-gray-600">
+                            Ingresa tu cédula para votar
+                        </p>
                     </div>
 
                     {error && (
@@ -222,9 +338,12 @@ export default function VotacionPage({
                                 onChange={(e) => setCedula(e.target.value.replace(/\D/g, ''))}
                                 placeholder="1234567890"
                                 maxLength={12}
-                                onKeyDown={(e) => { if (e.key === 'Enter') autenticar() }}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') autenticar()
+                                }}
                             />
                         </div>
+
                         <Button
                             onClick={autenticar}
                             disabled={loading || cedula.length < 6}
@@ -238,10 +357,9 @@ export default function VotacionPage({
         )
     }
 
-    // Datos del estado más reciente (polling) o vacío mientras carga
-    const proposiciones = estado?.proposiciones ?? []
-    const esVirtualOHibrida = (estado?.modalidad ?? '') === 'virtual' || (estado?.modalidad ?? '') === 'hibrida'
-    const mostrarZoom = esVirtualOHibrida && estado?.linkZoom
+    // condición para mostrar banner de Zoom 
+    const esVirtualOHibrida = modalidadAsamblea === 'virtual' || modalidadAsamblea === 'hibrida'
+    const mostrarZoom = esVirtualOHibrida && linkZoom
 
     // Pantalla de Votación
     return (
@@ -251,8 +369,12 @@ export default function VotacionPage({
                 <div className="max-w-4xl mx-auto px-4 py-4">
                     <div className="flex justify-between items-center">
                         <div>
-                            <h1 className="text-xl font-bold text-gray-900">Panel de Votación</h1>
-                            <p className="text-sm text-gray-600">{votante?.nombreCompleto}</p>
+                            <h1 className="text-xl font-bold text-gray-900">
+                                Panel de Votación
+                            </h1>
+                            <p className="text-sm text-gray-600">
+                                {votante?.nombreCompleto}
+                            </p>
                         </div>
                         <Button variant="outline" size="sm" onClick={cerrarSesion}>
                             <LogOut className="mr-2 h-4 w-4" />
@@ -262,7 +384,7 @@ export default function VotacionPage({
                 </div>
             </header>
 
-            {/* Banner Zoom */}
+            {/*Banner de Zoom  */}
             {mostrarZoom && (
                 <div className="bg-blue-600 border-b-4 border-blue-700">
                     <div className="max-w-4xl mx-auto px-4 py-3">
@@ -273,13 +395,15 @@ export default function VotacionPage({
                                 </div>
                                 <div>
                                     <p className="font-semibold text-white text-sm">
-                                        Asamblea {estado?.modalidad === 'hibrida' ? 'Híbrida' : 'Virtual'}
+                                        Asamblea {modalidadAsamblea === 'hibrida' ? 'Híbrida' : 'Virtual'}
                                     </p>
-                                    <p className="text-blue-100 text-xs">Únete a la sesión en línea para participar</p>
+                                    <p className="text-blue-100 text-xs">
+                                        Únete a la sesión en línea para participar
+                                    </p>
                                 </div>
                             </div>
                             <a
-                                href={estado?.linkZoom!}
+                                href={linkZoom!}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="flex-shrink-0 flex items-center gap-2 bg-white text-blue-700 hover:bg-blue-50 transition-colors font-semibold text-sm px-4 py-2 rounded-lg"
@@ -292,7 +416,7 @@ export default function VotacionPage({
                 </div>
             )}
 
-            {/* Alerta Confirmación */}
+            {/* Alerta de Confirmación */}
             {mostrarAlertaConfirmacion && (
                 <div className="bg-yellow-500 border-b-4 border-yellow-600">
                     <div className="max-w-4xl mx-auto px-4 py-4">
@@ -300,7 +424,9 @@ export default function VotacionPage({
                             <div className="flex items-center gap-3">
                                 <UserCheck className="h-6 w-6 text-white" />
                                 <div>
-                                    <p className="font-semibold text-white">¿Sigues presente en la asamblea?</p>
+                                    <p className="font-semibold text-white">
+                                        ¿Sigues presente en la asamblea?
+                                    </p>
                                     <p className="text-sm text-yellow-100">
                                         Por favor confirma tu asistencia para continuar participando
                                     </p>
@@ -318,7 +444,7 @@ export default function VotacionPage({
                 </div>
             )}
 
-            {/* Main */}
+            {/* Main Content */}
             <main className="max-w-4xl mx-auto px-4 py-8">
                 {error && (
                     <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
