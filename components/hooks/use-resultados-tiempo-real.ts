@@ -69,8 +69,6 @@ export function useResultadosTiempoReal(asambleaId: string) {
     const [datos, setDatos] = useState<ResultadosVivo | null>(null)
     const [cargando, setCargando] = useState(true)
     const [error, setError] = useState<string | null>(null)
-
-    // Ref para el canal de Ably (evitar recrearlo en cada render)
     const channelRef = useRef<RealtimeChannel | null>(null)
 
     // Función para cargar datos
