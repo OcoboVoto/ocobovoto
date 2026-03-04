@@ -86,6 +86,7 @@ export async function getAsambleaReporteData(id: string): Promise<ReporteAsamble
                 orderBy: { nombreCompleto: 'asc' },
             },
             proposiciones: {
+                where: { estado: { not: 'anulada' } },
                 include: {
                     opciones: {
                         include: {
