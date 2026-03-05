@@ -55,7 +55,7 @@ model Propietario {
 
 model UsuarioAdmin {
   id            String    @id @default(uuid())
-  conjuntoId    String    @unique @map("conjunto_id")
+  conjuntoId    String?    @unique @map("conjunto_id")
   email         String    @unique
   passwordHash  String    @map("password_hash")
   nombre        String

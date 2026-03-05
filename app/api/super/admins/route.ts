@@ -57,6 +57,7 @@ export async function POST(request: NextRequest) {
 
     const passwordHash = await bcrypt.hash(password, 10)
 
+    // 1. Crear el admin sin tocar conjuntos
     const admin = await prisma.usuarioAdmin.create({
       data: {
         email,
@@ -64,12 +65,16 @@ export async function POST(request: NextRequest) {
         nombre,
         activo: true,
         createdBy: session.id,
-        // Si se pasó conjuntoId, conectar el conjunto
-        ...(conjuntoId && {
-          conjuntos: { connect: { id: conjuntoId } },
-        }),
       },
     })
+
+    // 2. Si viene conjuntoId, actualizar el conjunto apuntando al nuevo admin
+    if (conjuntoId) {
+      await prisma.conjunto.update({
+        where: { id: conjuntoId },
+        data: { adminId: admin.id },
+      })
+    }
 
     return NextResponse.json<ApiResponse>({
       success: true,
