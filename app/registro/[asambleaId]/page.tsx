@@ -37,14 +37,14 @@ interface AsambleaInfo {
   estado: string
   modalidad: 'presencial' | 'virtual' | 'mixta' | 'hibrida'
   tipo: string
-  conjunto: { nombre: string }
+  conjunto: { id: string, nombre: string }
 }
 
-export default function RegistroPage({
-  params,
-}: {
-  params: Promise<{ asambleaId: string }>
-}) {
+const CONJUNTO_TORRE_APTO_ID = '4231a601-6721-46e0-b8c4-5f3435adfc28'
+const CONJUNTO_TORRE_APTO_NOMBRE = 'EDIFICIO INFINITY'
+type ModoEntrada = 'residente' | 'apoderado_externo' | null
+
+export default function RegistroPage({ params, }: { params: Promise<{ asambleaId: string }> }) {
   const { asambleaId } = use(params)
   const [cedula, setCedula] = useState('')
   const [propietario, setPropietario] = useState<PropietarioConPoderes | null>(null)
@@ -54,6 +54,9 @@ export default function RegistroPage({
   const [error, setError] = useState('')
   const [asamblea, setAsamblea] = useState<AsambleaInfo | null>(null)
   const [cargandoAsamblea, setCargandoAsamblea] = useState(true)
+  const [torre, setTorre] = useState('')
+  const [apto, setApto] = useState('')
+  const [modoEntrada, setModoEntrada] = useState<ModoEntrada>(null)
   const router = useRouter()
 
   // Cargar datos de la asamblea al montar
@@ -79,6 +82,117 @@ export default function RegistroPage({
     }
     fetchAsamblea()
   }, [asambleaId])
+
+  const esModoTorreApto = asamblea?.conjunto?.id === CONJUNTO_TORRE_APTO_ID ||
+    asamblea?.conjunto?.nombre?.toUpperCase() === CONJUNTO_TORRE_APTO_NOMBRE
+
+  const esHibrida = asamblea?.modalidad === 'hibrida' || asamblea?.modalidad === 'mixta'
+
+  // Modalidad final a enviar al API: en híbrida el usuario elige; si no, es fija
+  const getModalidadFinal = (): 'presencial' | 'virtual' => {
+    if (!esHibrida) {
+      return asamblea?.modalidad === 'virtual' ? 'virtual' : 'presencial'
+    }
+    return modalidad
+  }
+
+  const buscarPropietario = async () => {
+    if (esModoTorreApto && modoEntrada === 'residente') {
+      if (!torre.trim() || !apto.trim()) {
+        setError('Ingresa la torre y el apartamento')
+        return
+      }
+    } else {
+      if (cedula.length < 6) {
+        setError('Ingresa una cédula válida')
+        return
+      }
+    }
+
+    setLoading(true)
+    setError('')
+
+    let url: string
+    try {
+
+      if (esModoTorreApto && modoEntrada === 'residente') {
+        url = `/api/propietarios/buscar?torre=${encodeURIComponent(torre)}&apto=${encodeURIComponent(apto)}&asambleaId=${asambleaId}`
+      } else {
+        url = `/api/propietarios/buscar?cedula=${cedula}&asambleaId=${asambleaId}`
+      }
+      const response = await fetch(url)
+      const data = await response.json()
+
+      if (data.success) {
+        setPropietario(data.data)
+      } else {
+        setError(data.error)
+        setPropietario(null)
+      }
+    } catch (error) {
+      setError('Error de conexión')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleRegistro = async () => {
+    if (!propietario) return
+
+    setLoading(true)
+    setError('')
+
+    try {
+      const response = await fetch('/api/registro', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          asambleaId,
+          cedula,
+          nombreCompleto: propietario.nombreCompleto,
+          modalidadAsistencia: getModalidadFinal(),
+        }),
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        //setRegistrado(true)
+        router.push(`/votar/${asambleaId}`)
+      } else {
+        setError(data.error)
+      }
+    } catch (error) {
+      setError('Error de conexión')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Subtexto del resumen de coeficiente 
+
+  const getResumenCoeficiente = (): string => {
+    if (!propietario) return ''
+
+    const { esPropietario, cantidadUnidades, poderesOtorgados } = propietario
+    const numPoderes = poderesOtorgados.length
+
+    if (!esPropietario) {
+      // Apoderado externo: solo tiene poderes
+      return `(${numPoderes} ${numPoderes === 1 ? 'poder' : 'poderes'} representados)`
+    }
+
+    if (cantidadUnidades > 1 && numPoderes > 0) {
+      return `(${cantidadUnidades} unidades + ${numPoderes} ${numPoderes === 1 ? 'poder' : 'poderes'})`
+    }
+    if (cantidadUnidades > 1) {
+      return `(${cantidadUnidades} unidades propias)`
+    }
+    if (numPoderes > 0) {
+      return `(1 propio + ${numPoderes} ${numPoderes === 1 ? 'poder' : 'poderes'})`
+    }
+    return '(solo coeficiente propio)'
+  }
 
   if (cargandoAsamblea) {
     return (
@@ -123,99 +237,6 @@ export default function RegistroPage({
         </div>
       </div>
     )
-  }
-
-  const esHibrida = asamblea.modalidad === 'hibrida' || asamblea.modalidad === 'mixta'
-
-  // Modalidad final a enviar al API: en híbrida el usuario elige; si no, es fija
-  const getModalidadFinal = (): 'presencial' | 'virtual' => {
-    if (!esHibrida) {
-      return asamblea.modalidad === 'virtual' ? 'virtual' : 'presencial'
-    }
-    return modalidad
-  }
-
-  const buscarPropietario = async () => {
-    if (cedula.length < 6) {
-      setError('Ingresa una cédula válida')
-      return
-    }
-
-    setLoading(true)
-    setError('')
-
-    try {
-      const response = await fetch(`/api/propietarios/buscar?cedula=${cedula}&asambleaId=${asambleaId}`)
-      const data = await response.json()
-
-      if (data.success) {
-        setPropietario(data.data)
-      } else {
-        setError(data.error)
-        setPropietario(null)
-      }
-    } catch (error) {
-      setError('Error de conexión')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleRegistro = async () => {
-    if (!propietario) return
-
-    setLoading(true)
-    setError('')
-
-    try {
-      const response = await fetch('/api/registro', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          asambleaId,
-          cedula,
-          nombreCompleto: propietario.nombreCompleto,
-          modalidadAsistencia: getModalidadFinal(),
-        }),
-      })
-
-      const data = await response.json()
-
-      if (data.success) {
-        setRegistrado(true)
-      } else {
-        setError(data.error)
-      }
-    } catch (error) {
-      setError('Error de conexión')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  // ── Subtexto del resumen de coeficiente ──────────────────────────────────
-
-  const getResumenCoeficiente = (): string => {
-    if (!propietario) return ''
-
-    const { esPropietario, cantidadUnidades, poderesOtorgados } = propietario
-    const numPoderes = poderesOtorgados.length
-
-    if (!esPropietario) {
-      // Apoderado externo: solo tiene poderes
-      return `(${numPoderes} ${numPoderes === 1 ? 'poder' : 'poderes'} representados)`
-    }
-
-    if (cantidadUnidades > 1 && numPoderes > 0) {
-      return `(${cantidadUnidades} unidades + ${numPoderes} ${numPoderes === 1 ? 'poder' : 'poderes'})`
-    }
-    if (cantidadUnidades > 1) {
-      return `(${cantidadUnidades} unidades propias)`
-    }
-    if (numPoderes > 0) {
-      return `(1 propio + ${numPoderes} ${numPoderes === 1 ? 'poder' : 'poderes'})`
-    }
-    return '(solo coeficiente propio)'
   }
 
   // Pantalla de éxito
@@ -292,7 +313,8 @@ export default function RegistroPage({
             <h1 className="text-3xl font-bold text-gray-900 mb-2">
               Registro de Asistencia
             </h1>
-            <p className="text-gray-600">Ingresa tu cédula para registrarte</p>
+            <p className="text-gray-600">
+              {esModoTorreApto ? 'Ingresa tu torre y apartamento para registrarte' : 'Ingresa tu cédula para registrarte'}</p>
           </div>
 
           {/* Error */}
@@ -308,29 +330,110 @@ export default function RegistroPage({
           {/* Formulario de búsqueda */}
           {!propietario && (
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Número de Cédula
-                </label>
-                <Input
-                  type="text"
-                  value={cedula}
-                  onChange={(e) => setCedula(e.target.value.replace(/\D/g, ''))}
-                  placeholder="1234567890"
-                  maxLength={12}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') buscarPropietario()
-                  }}
-                />
-              </div>
+              {/* Selector de modo — solo en EDIFICIO INFINITY */}
+              {esModoTorreApto && modoEntrada === null && (
+                <div className="space-y-3">
+                  <p className="text-sm font-medium text-gray-700 text-center">
+                    ¿Cómo deseas registrarte?
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setModoEntrada('residente')}
+                      className="p-4 rounded-lg border-2 border-gray-200 hover:border-indigo-400 transition-colors text-center"
+                    >
+                      <Home className="h-6 w-6 mx-auto mb-2 text-gray-400" />
+                      <p className="text-sm font-medium text-gray-700">Soy residente</p>
+                      <p className="text-xs text-gray-400 mt-1">Buscar por Torre y Apto</p>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setModoEntrada('apoderado_externo')}
+                      className="p-4 rounded-lg border-2 border-gray-200 hover:border-indigo-400 transition-colors text-center"
+                    >
+                      <UserX className="h-6 w-6 mx-auto mb-2 text-gray-400" />
+                      <p className="text-sm font-medium text-gray-700">Soy apoderado</p>
+                      <p className="text-xs text-gray-400 mt-1">Tengo poder de un residente</p>
+                    </button>
+                  </div>
+                </div>
+              )}
 
-              <Button
-                onClick={buscarPropietario}
-                disabled={loading || cedula.length < 6}
-                className="w-full"
-              >
-                {loading ? 'Buscando...' : 'Buscar'}
-              </Button>
+              {/* Formulario según modo seleccionado */}
+              {(!esModoTorreApto || modoEntrada !== null) && (
+                <>
+                  {esModoTorreApto && modoEntrada === 'residente' ? (
+                    /* Torre + Apto */
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => { setModoEntrada(null); setError('') }}
+                        className="text-xs text-indigo-600 hover:underline flex items-center gap-1"
+                      >
+                        ← Volver
+                      </button>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Torre</label>
+                        <Input
+                          value={torre}
+                          onChange={(e) => setTorre(e.target.value)}
+                          placeholder="Ej: Torre A"
+                          onKeyDown={(e) => { if (e.key === 'Enter') buscarPropietario() }}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Apartamento</label>
+                        <Input
+                          value={apto}
+                          onChange={(e) => setApto(e.target.value)}
+                          placeholder="Ej: 101"
+                          onKeyDown={(e) => { if (e.key === 'Enter') buscarPropietario() }}
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    /* Cédula — conjuntos normales O apoderado externo */
+                    <>
+                      {esModoTorreApto && (
+                        <button
+                          type="button"
+                          onClick={() => { setModoEntrada(null); setError('') }}
+                          className="text-xs text-indigo-600 hover:underline flex items-center gap-1"
+                        >
+                          ← Volver
+                        </button>
+                      )}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Número de Cédula
+                        </label>
+                        <Input
+                          type="text"
+                          value={cedula}
+                          onChange={(e) => setCedula(e.target.value.replace(/\D/g, ''))}
+                          placeholder="1234567890"
+                          maxLength={12}
+                          onKeyDown={(e) => { if (e.key === 'Enter') buscarPropietario() }}
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  <Button
+                    onClick={buscarPropietario}
+                    disabled={
+                      loading || (
+                        esModoTorreApto && modoEntrada === 'residente'
+                          ? (!torre.trim() || !apto.trim())
+                          : cedula.length < 6
+                      )
+                    }
+                    className="w-full"
+                  >
+                    {loading ? 'Buscando...' : 'Buscar'}
+                  </Button>
+                </>
+              )}
             </div>
           )}
 
@@ -338,8 +441,8 @@ export default function RegistroPage({
           {propietario && (
             <div className="space-y-6">
               <div className={`rounded-lg p-4 border-2 ${propietario.esPropietario
-                  ? 'bg-indigo-50 border-indigo-200'
-                  : 'bg-amber-50 border-amber-200'
+                ? 'bg-indigo-50 border-indigo-200'
+                : 'bg-amber-50 border-amber-200'
                 }`}>
 
                 {/* Título de la tarjeta */}
@@ -457,8 +560,8 @@ export default function RegistroPage({
                   {/* Detalle de poderes */}
                   {propietario.poderesOtorgados.length > 0 && (
                     <div className={`rounded-lg p-3 border ${propietario.esPropietario
-                        ? 'bg-blue-50 border-blue-200'
-                        : 'bg-amber-100 border-amber-300'
+                      ? 'bg-blue-50 border-blue-200'
+                      : 'bg-amber-100 border-amber-300'
                       }`}>
                       <p className={`font-medium mb-2 flex items-center gap-2 ${propietario.esPropietario ? 'text-blue-900' : 'text-amber-900'
                         }`}>
@@ -491,8 +594,8 @@ export default function RegistroPage({
 
                   {/* Resumen de voto */}
                   <div className={`rounded-lg p-3 text-center border ${propietario.esPropietario
-                      ? 'bg-indigo-100 border-indigo-300'
-                      : 'bg-amber-100 border-amber-300'
+                    ? 'bg-indigo-100 border-indigo-300'
+                    : 'bg-amber-100 border-amber-300'
                     }`}>
                     <p className={`text-xs mb-1 ${propietario.esPropietario ? 'text-indigo-700' : 'text-amber-700'
                       }`}>
@@ -521,8 +624,8 @@ export default function RegistroPage({
                       type="button"
                       onClick={() => setModalidad('presencial')}
                       className={`p-3 rounded-lg border-2 text-sm font-medium transition-colors ${modalidad === 'presencial'
-                          ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
-                          : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                        ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                        : 'border-gray-200 text-gray-600 hover:border-gray-300'
                         }`}
                     >
                       Presencial
@@ -531,8 +634,8 @@ export default function RegistroPage({
                       type="button"
                       onClick={() => setModalidad('virtual')}
                       className={`p-3 rounded-lg border-2 text-sm font-medium transition-colors ${modalidad === 'virtual'
-                          ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
-                          : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                        ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                        : 'border-gray-200 text-gray-600 hover:border-gray-300'
                         }`}
                     >
                       Virtual
@@ -553,14 +656,18 @@ export default function RegistroPage({
                 <Button
                   onClick={() => {
                     setPropietario(null)
+                    setRegistrado(false)
                     setCedula('')
                     setError('')
+                    setApto('')
+                    setTorre('')
+                    setModoEntrada(null)
                   }}
                   variant="outline"
                   className="w-full"
                   disabled={loading}
                 >
-                  Buscar otra cédula
+                  Buscar otro propietario
                 </Button>
               </div>
             </div>

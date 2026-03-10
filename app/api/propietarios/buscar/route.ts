@@ -5,13 +5,15 @@ import { ApiResponse } from '@/types'
 
 export async function GET(request: NextRequest) {
   try {
-    const cedula = request.nextUrl.searchParams.get('cedula')
+    const cedula = request.nextUrl.searchParams.get('cedula') ?? undefined
+    const torre = request.nextUrl.searchParams.get('torre')
+    const apto = request.nextUrl.searchParams.get('apto')
     const asambleaId = request.nextUrl.searchParams.get('asambleaId')
 
-    if (!cedula) {
+    if (!cedula && !(torre && apto)) {
       return NextResponse.json<ApiResponse>({
         success: false,
-        error: 'Cédula requerida',
+        error: 'Se requiere cédula o torre+apartamento',
       }, { status: 400 })
     }
 
@@ -31,6 +33,68 @@ export async function GET(request: NextRequest) {
       }
 
       conjuntoId = asamblea.conjuntoId
+    }
+
+    //Buscar torre/apto
+    if (torre && apto) {
+      const propietarios = await prisma.propietario.findMany({
+        where: {
+          torreManzana: { equals: torre, mode: 'insensitive' },
+          aptoCasa: { equals: apto, mode: 'insensitive' },
+          ...(conjuntoId && { conjuntoId }),
+          activo: true,
+        },
+        select: {
+          id: true,
+          nombreCompleto: true,
+          cedula: true,
+          torreManzana: true,
+          aptoCasa: true,
+          coeficiente: true,
+        },
+      })
+
+      if (propietarios.length === 0) {
+        return NextResponse.json<ApiResponse>({
+          success: false,
+          error: 'No se encontró ningún propietario para esa torre y apartamento.',
+        }, { status: 404 })
+      }
+
+      // Verificar si ya está registrado (usando la cédula del propietario encontrado)
+      const prop = propietarios[0]
+      const coeficientePropio = propietarios.reduce((sum, p) => sum + Number(p.coeficiente), 0)
+
+      let poderesOtorgados: any[] = []
+      let coeficienteTotal = coeficientePropio
+
+      if (asambleaId) {
+        poderesOtorgados = await prisma.poder.findMany({
+          where: { cedulaApoderado: prop.cedula, asambleaId, activo: true },
+          include: { propietarioOtorgante: { select: { id: true, nombreCompleto: true, cedula: true, torreManzana: true, aptoCasa: true, coeficiente: true } } },
+        })
+        coeficienteTotal = poderesOtorgados.reduce(
+          (sum, p) => sum + Number(p.propietarioOtorgante.coeficiente), coeficientePropio
+        )
+      }
+
+      return NextResponse.json<ApiResponse>({
+        success: true,
+        data: {
+          id: prop.id,
+          nombreCompleto: prop.nombreCompleto,
+          cedula: prop.cedula,
+          torreManzana: prop.torreManzana,
+          aptoCasa: prop.aptoCasa,
+          coeficiente: coeficientePropio,
+          esPropietario: true,
+          poderesOtorgados: poderesOtorgados.map(p => ({ id: p.id, otorgante: p.propietarioOtorgante })),
+          coeficienteTotal,
+          tienePoderes: poderesOtorgados.length > 0,
+          cantidadUnidades: propietarios.length,
+          unidades: propietarios.map(p => `${p.torreManzana}-${p.aptoCasa}`),
+        },
+      })
     }
 
     // 2. Buscar TODOS los propietarios con esa cédula en el conjunto

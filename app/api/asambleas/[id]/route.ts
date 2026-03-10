@@ -18,7 +18,7 @@ export async function GET(
       where: { id },
       include: {
         conjunto: {
-          select: { nombre: true, coeficienteTotal: true },
+          select: { id: true, nombre: true, coeficienteTotal: true },
         },
         proposiciones: {
           orderBy: { numeroOrden: 'desc' },
