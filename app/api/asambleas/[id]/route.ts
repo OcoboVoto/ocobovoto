@@ -1,4 +1,4 @@
-//app/api/asambleas/[id]/route.ts
+// app/api/asambleas/[id]/route.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { ApiResponse } from '@/types'
@@ -36,7 +36,7 @@ export async function GET(
             confirmoAsistencia: true,
             horaConfirmacion: true,
             createdAt: true,
-          }
+          },
         },
         _count: {
           select: {
@@ -54,7 +54,44 @@ export async function GET(
       }, { status: 404 })
     }
 
-    const serialized = serializeAsamblea(asamblea)
+    const propietariosConjunto = await prisma.propietario.findMany({
+      where: { conjuntoId: asamblea.conjuntoId, activo: true },
+      select: { cedula: true },
+      orderBy: [{ torreManzana: 'asc' }, { aptoCasa: 'asc' }],
+    })
+
+    const cedulasVotantes = new Set(asamblea.votantes.map(v => v.cedula))
+
+    const asistentesDirectos = propietariosConjunto.filter(
+      p => cedulasVotantes.has(p.cedula)
+    ).length
+
+    // Poderes activos: query separada
+    const poderesActivos = await prisma.poder.findMany({
+      where: { asambleaId: id, activo: true },
+      select: {
+        cedulaApoderado: true,
+        propietarioOtorgante: { select: { cedula: true } },
+      },
+    })
+
+    // Por poder: apoderado asistió Y otorgante NO asistió directamente
+    const asistentesPorPoder = poderesActivos.filter(p =>
+      cedulasVotantes.has(p.cedulaApoderado) &&
+      !cedulasVotantes.has(p.propietarioOtorgante.cedula)
+    ).length
+
+    const totalAsistentes = asistentesDirectos + asistentesPorPoder
+
+    const serialized = serializeAsamblea({
+      ...asamblea,
+      _count: {
+        ...asamblea._count,
+        asistentesDirectos,
+        asistentesPorPoder,
+        totalAsistentes,
+      },
+    })
 
     return NextResponse.json<ApiResponse>({
       success: true,
@@ -62,15 +99,12 @@ export async function GET(
     })
   } catch (error) {
     console.error('Error en GET /api/asambleas/[id]:', error)
-
-    // Error específico de pool
     if (error instanceof Error && error.message.includes('connection pool')) {
       return NextResponse.json<ApiResponse>({
         success: false,
         error: 'Servidor ocupado. Reintentando...',
       }, { status: 503 })
     }
-
     return NextResponse.json<ApiResponse>({
       success: false,
       error: 'Error interno',
@@ -93,8 +127,8 @@ export async function PATCH(
       data: { estado },
     })
 
-    // Broadcast del cambio de estado  
-    await publishToChannel(ABLY_CHANNELS.asamblea(id),
+    await publishToChannel(
+      ABLY_CHANNELS.asamblea(id),
       ABLY_EVENTS.ASAMBLEA_UPDATE,
       {
         tipo: 'estado-cambio',

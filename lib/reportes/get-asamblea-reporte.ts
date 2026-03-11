@@ -1,4 +1,4 @@
-//lib/reportes/get-asamblea-reporte.ts
+// lib/reportes/get-asamblea-reporte.ts
 import { prisma } from '@/lib/prisma'
 
 export interface ReporteAsambleaData {
@@ -25,6 +25,13 @@ export interface ReporteAsambleaData {
         torreManzana: string
         aptoCasa: string
         coeficiente: number
+        /** Cómo participó: presencial/directo o por poder */
+        tipoAsistencia: 'directo' | 'por_poder'
+        /** Solo cuando tipoAsistencia === 'por_poder' */
+        apoderado?: {
+            nombreCompleto: string
+            cedula: string
+        }
     }[]
     noAsistentes: {
         nombreCompleto: string
@@ -72,6 +79,8 @@ export interface ReporteAsambleaData {
         totalPropietarios: number
         totalAsistentes: number
         totalNoAsistentes: number
+        totalAsistentesDirecto: number
+        totalAsistentesPorPoder: number
         totalProposiciones: number
         totalPoderes: number
     }
@@ -91,9 +100,7 @@ export async function getAsambleaReporteData(id: string): Promise<ReporteAsamble
                     opciones: {
                         include: {
                             votos: {
-                                include: {
-                                    votante: true,
-                                },
+                                include: { votante: true },
                             },
                         },
                     },
@@ -129,24 +136,74 @@ export async function getAsambleaReporteData(id: string): Promise<ReporteAsamble
         orderBy: [{ torreManzana: 'asc' }, { aptoCasa: 'asc' }],
     })
 
-    const cedulasAsistentes = new Set(asamblea.votantes.map(v => v.cedula))
-    const asistentes = todosPropietarios.filter(p => cedulasAsistentes.has(p.cedula))
-    const noAsistentes = todosPropietarios.filter(p => !cedulasAsistentes.has(p.cedula))
+    // Cédulas de quienes SE REGISTRARON directamente como votantes 
+    const cedulasVotantesDirectos = new Set(asamblea.votantes.map(v => v.cedula))
 
+    //  Mapa: cédula del otorgante → datos del apoderado 
+    // Solo se cuenta si el apoderado efectivamente se registró como votante.
+    // Esto cubre tanto apoderados internos (propietarios) como externos.
+    const otorgantesRepresentados = new Map<string, { nombreCompleto: string; cedula: string }>()
+
+    for (const poder of asamblea.poderes) {
+        const cedulaApoderado = poder.cedulaApoderado
+        const cedulaOtorgante = poder.propietarioOtorgante.cedula
+
+        // El apoderado se registró como votante → el otorgante "asistió por poder"
+        if (cedulasVotantesDirectos.has(cedulaApoderado)) {
+            otorgantesRepresentados.set(cedulaOtorgante, {
+                nombreCompleto: poder.nombreApoderado,
+                cedula: cedulaApoderado,
+            })
+        }
+    }
+
+    // Clasificar cada propietario 
+    const asistentes: ReporteAsambleaData['asistentes'] = []
+    const noAsistentes: ReporteAsambleaData['noAsistentes'] = []
+
+    for (const p of todosPropietarios) {
+        const asistioDirecto = cedulasVotantesDirectos.has(p.cedula)
+        const asistioRepresentado = otorgantesRepresentados.has(p.cedula)
+
+        if (asistioDirecto) {
+            asistentes.push({
+                nombreCompleto: p.nombreCompleto,
+                torreManzana: p.torreManzana,
+                aptoCasa: p.aptoCasa,
+                coeficiente: Number(p.coeficiente),
+                tipoAsistencia: 'directo',
+            })
+        } else if (asistioRepresentado) {
+            const apoderado = otorgantesRepresentados.get(p.cedula)!
+            asistentes.push({
+                nombreCompleto: p.nombreCompleto,
+                torreManzana: p.torreManzana,
+                aptoCasa: p.aptoCasa,
+                coeficiente: Number(p.coeficiente),
+                tipoAsistencia: 'por_poder',
+                apoderado,
+            })
+        } else {
+            noAsistentes.push({
+                nombreCompleto: p.nombreCompleto,
+                torreManzana: p.torreManzana,
+                aptoCasa: p.aptoCasa,
+            })
+        }
+    }
+
+    //Proposiciones 
     const resultadosProposiciones = asamblea.proposiciones.map((prop) => {
         const totalVotantes = asamblea.votantes.length
         const coeficienteTotalPresente = asamblea.votantes.reduce(
-            (sum, v) => sum + Number(v.coeficienteTotal),
-            0,
+            (sum, v) => sum + Number(v.coeficienteTotal), 0,
         )
 
         const resultadosOpciones = prop.opciones.map((opcion) => {
             const votosOpcion = opcion.votos
             const coeficienteOpcion = votosOpcion.reduce(
-                (sum, v) => sum + Number(v.coeficienteAplicado),
-                0,
+                (sum, v) => sum + Number(v.coeficienteAplicado), 0,
             )
-
             return {
                 texto: opcion.texto,
                 codigo: opcion.codigo,
@@ -165,7 +222,6 @@ export async function getAsambleaReporteData(id: string): Promise<ReporteAsamble
         const opcionGanadora = resultadosOpciones.reduce((prev, curr) =>
             curr.coeficiente > prev.coeficiente ? curr : prev,
         )
-
         const aprobada = opcionGanadora.porcentaje >= Number(prop.porcentajeRequerido)
 
         return {
@@ -188,6 +244,7 @@ export async function getAsambleaReporteData(id: string): Promise<ReporteAsamble
         }
     })
 
+    // Poderes 
     const poderesFormateados = asamblea.poderes.map(p => ({
         id: p.id,
         otorgante: {
@@ -203,6 +260,9 @@ export async function getAsambleaReporteData(id: string): Promise<ReporteAsamble
         },
         fechaRegistro: p.fechaRegistro,
     }))
+
+    const asistentesDirecto = asistentes.filter(a => a.tipoAsistencia === 'directo')
+    const asistentesPorPoder = asistentes.filter(a => a.tipoAsistencia === 'por_poder')
 
     return {
         asamblea: {
@@ -225,23 +285,16 @@ export async function getAsambleaReporteData(id: string): Promise<ReporteAsamble
             nombre: asamblea.conjunto.nombre,
             nit: asamblea.conjunto.nit,
         },
-        asistentes: asistentes.map(a => ({
-            nombreCompleto: a.nombreCompleto,
-            torreManzana: a.torreManzana,
-            aptoCasa: a.aptoCasa,
-            coeficiente: Number(a.coeficiente),
-        })),
-        noAsistentes: noAsistentes.map(a => ({
-            nombreCompleto: a.nombreCompleto,
-            torreManzana: a.torreManzana,
-            aptoCasa: a.aptoCasa,
-        })),
+        asistentes,
+        noAsistentes,
         proposiciones: resultadosProposiciones,
         poderes: poderesFormateados,
         resumen: {
             totalPropietarios: todosPropietarios.length,
             totalAsistentes: asistentes.length,
             totalNoAsistentes: noAsistentes.length,
+            totalAsistentesDirecto: asistentesDirecto.length,
+            totalAsistentesPorPoder: asistentesPorPoder.length,
             totalProposiciones: asamblea.proposiciones.length,
             totalPoderes: poderesFormateados.length,
         },

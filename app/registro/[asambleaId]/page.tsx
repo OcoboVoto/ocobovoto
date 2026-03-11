@@ -1,3 +1,4 @@
+//app/registro/[asambleaId]/page.tsx
 'use client'
 
 import { use, useEffect, useState } from 'react'
@@ -148,7 +149,7 @@ export default function RegistroPage({ params, }: { params: Promise<{ asambleaId
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           asambleaId,
-          cedula,
+          cedula: esModoTorreApto ? propietario.cedula : cedula,
           nombreCompleto: propietario.nombreCompleto,
           modalidadAsistencia: getModalidadFinal(),
         }),
@@ -157,8 +158,12 @@ export default function RegistroPage({ params, }: { params: Promise<{ asambleaId
       const data = await response.json()
 
       if (data.success) {
-        //setRegistrado(true)
-        router.push(`/votar/${asambleaId}`)
+        if (esModoTorreApto) {
+          setRegistrado(true)
+          sessionStorage.setItem('cedula_votante', propietario.cedula)
+          router.push(`/votar/${asambleaId}`)
+        }
+        setRegistrado(true)
       } else {
         setError(data.error)
       }

@@ -54,10 +54,15 @@ interface Asamblea {
   registrosCerrados: boolean
   quorumAlCierreRegistros: number | null
   fechaCierreRegistros: string | null
-  _count: {
-    votantes: number
-    registros: number
-  }
+  _count: AsambleaCount
+}
+
+interface AsambleaCount {
+  votantes: number        // votantes directos (igual que antes)
+  registros: number
+  asistentesDirectos: number
+  asistentesPorPoder: number
+  totalAsistentes: number // asistentesDirectos + asistentesPorPoder
 }
 
 interface ResultadoData {
@@ -387,26 +392,43 @@ export default function DetalleAsambleaPage({
             <div className="bg-white rounded-lg shadow-sm border p-6">
               <h3 className="text-lg font-semibold mb-4">Estadísticas</h3>
               <div className="grid grid-cols-2 gap-3">
+
+                {/* Total registros (accesos al QR) */}
                 <div>
                   <p className="text-sm text-gray-600">Total Registros</p>
                   <p className="text-3xl font-bold text-gray-900">
                     {asamblea._count.registros}
                   </p>
                 </div>
+
+                {/* Total asistentes = directos + por poder */}
                 <div>
-                  <p className="text-sm text-gray-600">Votantes Únicos</p>
+                  <p className="text-sm text-gray-600">Total Asistentes</p>
                   <p className="text-3xl font-bold text-indigo-600">
-                    {asamblea._count.votantes}
+                    {asamblea._count.totalAsistentes ?? asamblea._count.votantes}
                   </p>
+
+                  {/* Desglose solo si hay poderes representados */}
+                  {(asamblea._count.asistentesPorPoder ?? 0) > 0 && (
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {asamblea._count.asistentesDirectos} directos
+                      {' · '}
+                      {asamblea._count.asistentesPorPoder} por poder
+                    </p>
+                  )}
                 </div>
+
+                {/* Quórum requerido */}
                 <div>
                   <p className="text-sm text-gray-600">Quórum Requerido</p>
                   <p className="text-2xl font-bold text-gray-900">
                     {asamblea.quorumRequerido}%
                   </p>
                 </div>
+
+                {/* Quórum inicial */}
                 <div>
-                  <p className="text-sm text-gray-600">Quórum Incial</p>
+                  <p className="text-sm text-gray-600">Quórum Inicial</p>
                   <p className={`text-2xl font-bold ${asamblea.quorumInicial >= asamblea.quorumRequerido
                     ? 'text-green-600'
                     : 'text-orange-600'
@@ -537,7 +559,9 @@ export default function DetalleAsambleaPage({
         {/* Lista de Votantes */}
         <div className="mt-10">
           <ListaVotantes asambleaId={id}
-            votantes={asamblea.votantes || []} />
+            votantes={asamblea.votantes || []}
+            estadoAsamblea={asamblea.estado}
+            onVotanteAnulado={fetchAsamblea} />
         </div>
 
         {/* Gestión de Poderes */}
