@@ -9,31 +9,37 @@ export async function POST(request: NextRequest) {
     const { asambleaId, cedulaOtorgante, cedulaApoderado, nombreApoderado } = body
 
     // Buscar propietario otorgante
-    const otorgante = await prisma.propietario.findFirst({
+    const otorgantes = await prisma.propietario.findMany({
       where: { cedula: cedulaOtorgante },
     })
 
-    if (!otorgante) {
+    if (otorgantes.length === 0) {
       return NextResponse.json<ApiResponse>({
         success: false,
         error: 'Propietario otorgante no encontrado',
       }, { status: 404 })
     }
 
-    // Verificar que no tenga poder ya otorgado
-    const poderExistente = await prisma.poder.findUnique({
+    // Verificar que ninguna de sus propiedades ya tenga poder otorgado
+    const poderesExistentes = await prisma.poder.findMany({
       where: {
-        propietarioOtorganteId_asambleaId: {
-          propietarioOtorganteId: otorgante.id,
-          asambleaId,
-        },
+        propietarioOtorganteId: { in: otorgantes.map(o => o.id) },
+        asambleaId,
       },
+      include: {
+        propietarioOtorgante: {
+          select: { torreManzana: true, aptoCasa: true }
+        }
+      }
     })
 
-    if (poderExistente) {
+    if (poderesExistentes.length > 0) {
+      const unidades = poderesExistentes
+        .map(p => `${p.propietarioOtorgante.torreManzana}-${p.propietarioOtorgante.aptoCasa}`)
+        .join(', ')
       return NextResponse.json<ApiResponse>({
         success: false,
-        error: 'Este propietario ya otorgó un poder para esta asamblea',
+        error: `Este propietario ya otorgó poderes en esta asamblea para: ${unidades}`,
       }, { status: 400 })
     }
 
@@ -52,31 +58,39 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
-    // Crear poder
-    const poder = await prisma.poder.create({
-      data: {
-        propietarioOtorganteId: otorgante.id,
-        asambleaId,
-        cedulaApoderado,
-        nombreApoderado,
-      },
-      include: {
-        propietarioOtorgante: {
-          select: {
-            id: true,
-            nombreCompleto: true,
-            cedula: true,
-            torreManzana: true,
-            aptoCasa: true,
-            coeficiente: true,
+    //Crear un poder por CADA propiedad del otorgante en una transacción
+    const poderes = await prisma.$transaction(
+      otorgantes.map(otorgante =>
+        prisma.poder.create({
+          data: {
+            propietarioOtorganteId: otorgante.id,
+            asambleaId,
+            cedulaApoderado,
+            nombreApoderado,
           },
-        },
-      },
-    })
+          include: {
+            propietarioOtorgante: {
+              select: {
+                id: true,
+                nombreCompleto: true,
+                cedula: true,
+                torreManzana: true,
+                aptoCasa: true,
+                coeficiente: true,
+              },
+            },
+          },
+        })
+      )
+    )
+
+    const mensaje = otorgantes.length > 1
+      ? `${otorgantes.length} poderes otorgados exitosamente a ${nombreApoderado} (${otorgantes.length} unidades)`
+      : `Poder otorgado exitosamente a ${nombreApoderado}`
 
     return NextResponse.json<ApiResponse>({
       success: true,
-      data: poder,
+      data: poderes,
       message: 'Poder otorgado exitosamente',
     })
 

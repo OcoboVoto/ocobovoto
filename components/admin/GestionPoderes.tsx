@@ -115,9 +115,10 @@ export function GestionPoderes({ asambleaId }: GestionPoderesProps) {
       const data = await res.json()
 
       if (data.success) {
+        const cantidad = Array.isArray(data.data) ? data.data.length : 1
         confirm({
-          title: 'Poder Otorgado',
-          description: `El poder fue otorgado exitosamente a ${nombreApoderado}.`,
+          title: 'Poder(es) Otorgado(s)',
+          description: data.message,
           confirmText: 'Aceptar', variant: 'success', hideCancel: true, onConfirm: () => { },
         })
 
