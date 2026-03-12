@@ -58,11 +58,12 @@ interface Asamblea {
 }
 
 interface AsambleaCount {
-  votantes: number        // votantes directos (igual que antes)
+  votantes: number
   registros: number
   asistentesDirectos: number
   asistentesPorPoder: number
-  totalAsistentes: number // asistentesDirectos + asistentesPorPoder
+  totalAsistentes: number
+  totalUnidades: number
 }
 
 interface ResultadoData {
@@ -393,11 +394,14 @@ export default function DetalleAsambleaPage({
               <h3 className="text-lg font-semibold mb-4">Estadísticas</h3>
               <div className="grid grid-cols-2 gap-3">
 
-                {/* Total registros (accesos al QR) */}
+                {/* Total Unidades — para quórum */}
                 <div>
-                  <p className="text-sm text-gray-600">Total Registros</p>
-                  <p className="text-3xl font-bold text-gray-900">
-                    {asamblea._count.registros}
+                  <p className="text-sm text-gray-600">Total Unidades</p>
+                  <p className="text-3xl font-bold text-violet-600">
+                    {asamblea._count.totalUnidades}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    unidades representadas
                   </p>
                 </div>
 
@@ -413,7 +417,7 @@ export default function DetalleAsambleaPage({
                     <p className="text-xs text-gray-400 mt-0.5">
                       {asamblea._count.asistentesDirectos} directos
                       {' · '}
-                      {asamblea._count.asistentesPorPoder} por poder
+                      {asamblea._count.asistentesPorPoder} apoderados externos
                     </p>
                   )}
                 </div>

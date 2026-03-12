@@ -11,6 +11,7 @@ export function serializeAsamblea(asamblea: any) {
       votantes: asamblea.votantes?.map((votante: any) => ({
         ...votante,
         coeficienteTotal: Number(votante.coeficienteTotal)
-      }))
+      })),
+      _count: asamblea._count ? { ...asamblea._count } : undefined,
     }
   }

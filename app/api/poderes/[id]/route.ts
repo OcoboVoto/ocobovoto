@@ -4,10 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { ApiResponse } from '@/types'
 
 
-export async function PATCH(
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     try {
         const { id: poderId } = await params
         const body = await request.json()
@@ -29,7 +26,7 @@ export async function PATCH(
 
         const poder = await prisma.poder.findUnique({
             where: { id: poderId },
-            select: { id: true, asambleaId: true, cedulaApoderado: true, nombreApoderado: true },
+            select: { id: true, asambleaId: true, cedulaApoderado: true, nombreApoderado: true, propietarioOtorganteId: true },
         })
 
         if (!poder) {
@@ -56,11 +53,17 @@ export async function PATCH(
             }
 
             const poderDuplicado = await prisma.poder.findFirst({
-                where: { asambleaId, cedulaApoderado, id: { not: poderId }, activo: true },
+                where: {
+                    asambleaId,
+                    cedulaApoderado,
+                    propietarioOtorganteId: poder.propietarioOtorganteId,
+                    id: { not: poderId },
+                    activo: true,
+                },
             })
             if (poderDuplicado) {
                 return NextResponse.json<ApiResponse>(
-                    { success: false, error: `Ya existe otro poder para el apoderado con cédula ${cedulaApoderado}` },
+                    { success: false, error: `Este otorgante ya tiene un poder activo para el apoderado con cédula ${cedulaApoderado}` },
                     { status: 400 }
                 )
             }

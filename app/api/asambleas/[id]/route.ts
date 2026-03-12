@@ -7,10 +7,7 @@ import { publishToChannel } from '@/lib/ably/server'
 import { ABLY_CHANNELS, ABLY_EVENTS } from '@/lib/ably/channel-names'
 
 // GET: Obtener asamblea por ID
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params
 
@@ -60,36 +57,38 @@ export async function GET(
       orderBy: [{ torreManzana: 'asc' }, { aptoCasa: 'asc' }],
     })
 
-    const cedulasVotantes = new Set(asamblea.votantes.map(v => v.cedula))
+    const cedulasPropietariosSet = new Set(propietariosConjunto.map(p => p.cedula))
 
-    const asistentesDirectos = propietariosConjunto.filter(
-      p => cedulasVotantes.has(p.cedula)
+    // Total personas físicas que se registraron
+    const totalAsistentes = asamblea.votantes.length
+
+    // Propietarios del conjunto que vinieron en persona
+    const asistentesDirectos = asamblea.votantes.filter(
+      v => cedulasPropietariosSet.has(v.cedula)
     ).length
 
-    // Poderes activos: query separada
-    const poderesActivos = await prisma.poder.findMany({
-      where: { asambleaId: id, activo: true },
-      select: {
-        cedulaApoderado: true,
-        propietarioOtorgante: { select: { cedula: true } },
-      },
-    })
-
-    // Por poder: apoderado asistió Y otorgante NO asistió directamente
-    const asistentesPorPoder = poderesActivos.filter(p =>
-      cedulasVotantes.has(p.cedulaApoderado) &&
-      !cedulasVotantes.has(p.propietarioOtorgante.cedula)
+    // Apoderados externos (no son propietarios del conjunto)
+    const asistentesPorPoder = asamblea.votantes.filter(
+      v => !cedulasPropietariosSet.has(v.cedula)
     ).length
 
-    const totalAsistentes = asistentesDirectos + asistentesPorPoder
+    // ── Unidades representadas (para quórum legal) 
+    // Suma de propietariosRepresenta de todos los votantes
+    // Incluye: unidades propias de propietarios + poderes representados por apoderados
+    const totalUnidades = asamblea.votantes.reduce(
+      (sum, v) => sum + v.propietariosRepresenta, 0
+    )
 
     const serialized = serializeAsamblea({
       ...asamblea,
       _count: {
         ...asamblea._count,
+        registros: asamblea._count.registros,
+        votantes: asamblea._count.votantes,
         asistentesDirectos,
         asistentesPorPoder,
         totalAsistentes,
+        totalUnidades
       },
     })
 
