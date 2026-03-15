@@ -566,29 +566,28 @@ export default function VotacionPage({
                 ) : (
                     proposiciones.map((proposicion: any) => {
                         const yaVoto = proposicion.yaVoto
-                        const estaActiva = proposicion.estado === 'activa'
+                        // El API /api/votacion solo devuelve proposiciones con estado 'activa',
+                        // el campo estado no viene en el objeto del polling. Siempre activa.
+                        const estaActiva = true
 
                         return (
                             <div
                                 key={proposicion.id}
-                                className={`bg-white rounded-xl border p-6 space-y-4 ${estaActiva ? 'border-indigo-300 shadow-md' : 'border-gray-200 opacity-75'}`}
+                                className="bg-white rounded-xl border border-indigo-300 shadow-md p-6 space-y-4"
                             >
                                 {/* Cabecera proposición */}
                                 <div className="flex items-start justify-between gap-3">
                                     <div>
                                         <span className="text-xs font-semibold text-indigo-600 uppercase tracking-wide">
-                                            {proposicion.tipo === 'binaria' ? 'Votación' : 'Elección'}
+                                            {proposicion.tipoPregunta === 'binaria' ? 'Votación' : 'Elección'}
                                         </span>
                                         <h2 className="text-lg font-bold text-gray-900 mt-1">{proposicion.titulo}</h2>
                                         {proposicion.descripcion && (
                                             <p className="text-sm text-gray-500 mt-1">{proposicion.descripcion}</p>
                                         )}
                                     </div>
-                                    <span className={`flex-shrink-0 text-xs font-medium px-2.5 py-1 rounded-full ${estaActiva
-                                        ? 'bg-green-100 text-green-700'
-                                        : 'bg-gray-100 text-gray-500'
-                                        }`}>
-                                        {estaActiva ? 'Activa' : 'Cerrada'}
+                                    <span className="flex-shrink-0 text-xs font-medium px-2.5 py-1 rounded-full bg-green-100 text-green-700">
+                                        Activa
                                     </span>
                                 </div>
 
@@ -602,7 +601,7 @@ export default function VotacionPage({
                                             Tu voto ha sido contabilizado correctamente
                                         </p>
                                     </div>
-                                ) : estaActiva ? (
+                                ) : (
                                     /* Opciones de voto */
                                     <div className="grid gap-2">
                                         {proposicion.opciones?.map((opcion: any) => (
@@ -619,10 +618,6 @@ export default function VotacionPage({
                                                 {votando === proposicion.id ? 'Registrando...' : opcion.texto}
                                             </button>
                                         ))}
-                                    </div>
-                                ) : (
-                                    <div className="bg-gray-50 rounded-lg p-3 text-center">
-                                        <p className="text-gray-400 text-sm">Esta votación ya cerró</p>
                                     </div>
                                 )}
                             </div>
