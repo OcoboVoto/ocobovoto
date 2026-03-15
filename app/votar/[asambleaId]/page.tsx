@@ -1,20 +1,31 @@
-//app/votar/[asambleaId]//page.tsx
-'use client'
-
+//app/votar/[asambleaId]/page.tsx
 'use client'
 
 import { use, useCallback, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { CheckCircle2, AlertCircle, Vote, LogOut, UserCheck, Video, ExternalLink } from 'lucide-react'
+import { AlertCircle, Vote, LogOut, Video, ExternalLink, Building, MapPin } from 'lucide-react'
 import { toast } from 'sonner'
 import { useVotacionPolling } from '@/components/hooks/use-votacion-polling'
 
+// ─── Constantes Infinity ──────────────────────────────────────────────────────
+const CONJUNTO_INFINITY_ID = '4231a601-6721-46e0-b8c4-5f3435adfc28'
+
+type ModoLoginInfinity = null | 'residente' | 'apoderado_externo'
+
+// ─── Tipos ────────────────────────────────────────────────────────────────────
 interface Votante {
     id: string
     nombreCompleto: string
     coeficienteTotal: number
     confirmoAsistencia: boolean
+}
+
+interface AsambleaInfo {
+    id: string
+    estado: string
+    modalidad: string
+    conjuntoId: string
 }
 
 export default function VotacionPage({
@@ -23,9 +34,10 @@ export default function VotacionPage({
     params: Promise<{ asambleaId: string }>
 }) {
     const { asambleaId } = use(params)
+
+    // ─── Estado general ───────────────────────────────────────────────────────
     const [inicializando, setInicializando] = useState(true)
-    const [cedula, setCedula] = useState('')
-    const [cedulaActiva, setCedulaActiva] = useState<string | null>(null) // cedula autenticada
+    const [asamblea, setAsamblea] = useState<AsambleaInfo | null>(null)
     const [autenticado, setAutenticado] = useState(false)
     const [votante, setVotante] = useState<Votante | null>(null)
     const [loading, setLoading] = useState(false)
@@ -34,20 +46,30 @@ export default function VotacionPage({
     const [mostrarAlertaConfirmacion, setMostrarAlertaConfirmacion] = useState(false)
     const [confirmando, setConfirmando] = useState(false)
 
-    // ─── POLLING (reemplaza Ably WebSocket) ───────────────────────────────────
-    // Solo activo cuando el votante está autenticado.
-    // Hace 1 request HTTP cada 5s → 58 req/s con 290 personas. Vercel lo maneja sin problema.
-    const { estado, cargando: pollingCargando, refrescarAhora } = useVotacionPolling({
+    // ─── Estado login normal (cédula) ─────────────────────────────────────────
+    const [cedula, setCedula] = useState('')
+    const [cedulaActiva, setCedulaActiva] = useState<string | null>(null)
+
+    // ─── Estado login Infinity ────────────────────────────────────────────────
+    const [modoLoginInfinity, setModoLoginInfinity] = useState<ModoLoginInfinity>(null)
+    const [torre, setTorre] = useState('')
+    const [apto, setApto] = useState('')
+    const [cedulaApoderado, setCedulaApoderado] = useState('')
+
+    // ─── Derivados ────────────────────────────────────────────────────────────
+    const esInfinity = asamblea?.conjuntoId === CONJUNTO_INFINITY_ID
+
+    // ─── POLLING ──────────────────────────────────────────────────────────────
+    const { estado, refrescarAhora } = useVotacionPolling({
         asambleaId,
         cedula: cedulaActiva,
         activo: autenticado,
         intervalo: 5000,
     })
 
-    // Detectar cambio en confirmación de asistencia via polling
+    // Detectar activación de confirmación de asistencia via polling
     useEffect(() => {
         if (!estado || !votante) return
-
         if (estado.confirmacionActivada && !votante.confirmoAsistencia) {
             setMostrarAlertaConfirmacion(true)
         }
@@ -55,8 +77,29 @@ export default function VotacionPage({
             setMostrarAlertaConfirmacion(false)
         }
     }, [estado?.confirmacionActivada, estado?.asambleaEstado, votante])
-    // ──────────────────────────────────────────────────────────────────────────
 
+    // ─── Cargar datos básicos de la asamblea ──────────────────────────────────
+    useEffect(() => {
+        const cargarAsamblea = async () => {
+            try {
+                const res = await fetch(`/api/asambleas/${asambleaId}`)
+                const data = await res.json()
+                if (data.success) {
+                    setAsamblea({
+                        id: data.data.id,
+                        estado: data.data.estado,
+                        modalidad: data.data.modalidad,
+                        conjuntoId: data.data.conjuntoId ?? data.data.conjunto?.id,
+                    })
+                }
+            } catch {
+                // Si falla, continuar sin modo Infinity (flujo normal)
+            }
+        }
+        cargarAsamblea()
+    }, [asambleaId])
+
+    // ─── Autenticar con cédula (flujo normal y apoderado externo Infinity) ────
     const autenticarConCedula = useCallback(async (cedulaValue: string) => {
         if (cedulaValue.length < 6) {
             setError('Ingresa una cédula válida')
@@ -71,7 +114,7 @@ export default function VotacionPage({
 
             if (data.success) {
                 setCedula(cedulaValue)
-                setCedulaActiva(cedulaValue) // activa el polling
+                setCedulaActiva(cedulaValue)
                 setVotante(data.data.votante)
                 setAutenticado(true)
                 sessionStorage.setItem('cedula_votante', cedulaValue)
@@ -90,18 +133,71 @@ export default function VotacionPage({
         }
     }, [asambleaId])
 
-    const autenticar = () => autenticarConCedula(cedula)
+    // ─── Autenticar con Torre+Apto (Infinity residente) ───────────────────────
+    const autenticarConTorreApto = async () => {
+        if (!torre.trim() || !apto.trim()) {
+            setError('Ingresa la torre y el apartamento')
+            return
+        }
+        setLoading(true)
+        setError('')
 
+        try {
+            // 1. Buscar propietario por torre+apto para obtener su cédula
+            const resBuscar = await fetch(
+                `/api/propietarios/buscar?torre=${encodeURIComponent(torre)}&apto=${encodeURIComponent(apto)}&asambleaId=${asambleaId}`
+            )
+            const dataBuscar = await resBuscar.json()
+
+            if (!dataBuscar.success) {
+                setError(dataBuscar.error || 'No se encontró propietario para esa torre y apartamento')
+                setLoading(false)
+                return
+            }
+
+            // 2. Usar la cédula del propietario encontrado para autenticar en votación
+            const cedulaEncontrada: string = dataBuscar.data.cedula
+            await autenticarConCedula(cedulaEncontrada)
+        } catch {
+            setError('Error de conexión. Intenta nuevamente.')
+            setLoading(false)
+        }
+    }
+
+    // ─── Restaurar sesión al montar ───────────────────────────────────────────
+    useEffect(() => {
+        const restaurarSesion = async () => {
+            // Esperamos a tener los datos de asamblea antes de restaurar sesión
+            // para saber si es Infinity o no (el cargarAsamblea ya corrió antes)
+            const cedulaGuardada = sessionStorage.getItem('cedula_votante')
+            if (cedulaGuardada) {
+                await autenticarConCedula(cedulaGuardada)
+            }
+            setInicializando(false)
+        }
+
+        // Solo restaurar sesión cuando ya tenemos info de la asamblea
+        if (asamblea !== null) {
+            restaurarSesion()
+        }
+    }, [asamblea, autenticarConCedula])
+
+    // ─── Cerrar sesión ────────────────────────────────────────────────────────
     const cerrarSesion = () => {
-        // Sin Ably no hay nada que limpiar — solo estado local
-        setCedulaActiva(null) // detiene el polling
+        setCedulaActiva(null)
         sessionStorage.removeItem('cedula_votante')
         setAutenticado(false)
         setCedula('')
         setVotante(null)
         setMostrarAlertaConfirmacion(false)
+        // Limpiar campos Infinity
+        setTorre('')
+        setApto('')
+        setCedulaApoderado('')
+        setModoLoginInfinity(null)
     }
 
+    // ─── Confirmar asistencia ─────────────────────────────────────────────────
     const confirmarAsistencia = async () => {
         if (!votante) return
         setConfirmando(true)
@@ -110,12 +206,8 @@ export default function VotacionPage({
             const response = await fetch('/api/confirmacion', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    asambleaId,
-                    votanteId: votante?.id,
-                }),
+                body: JSON.stringify({ asambleaId, votanteId: votante?.id }),
             })
-
             const data = await response.json()
 
             if (data.success) {
@@ -132,18 +224,7 @@ export default function VotacionPage({
         }
     }
 
-    // Auto-autenticar con sesión guardada
-    useEffect(() => {
-        const restaurarSesion = async () => {
-            const cedulaGuardada = sessionStorage.getItem('cedula_votante')
-            if (cedulaGuardada) {
-                await autenticarConCedula(cedulaGuardada)
-            }
-            setInicializando(false)
-        }
-        restaurarSesion()
-    }, [asambleaId, autenticarConCedula])
-
+    // ─── Emitir voto ──────────────────────────────────────────────────────────
     const emitirVoto = async (proposicionId: string, opcionId: string) => {
         if (!cedula || votando) return
         setVotando(proposicionId)
@@ -157,15 +238,13 @@ export default function VotacionPage({
                     proposicionId,
                     votanteId: votante?.id,
                     opcionId,
-                    cedula
+                    cedula,
                 }),
             })
-
             const data = await response.json()
 
             if (data.success) {
                 toast.success('¡Voto registrado exitosamente!')
-                // Refrescar inmediatamente después de votar para actualizar yaVoto
                 refrescarAhora()
             } else {
                 toast.error('Error al votar: ' + (data.error || 'Error desconocido'))
@@ -181,7 +260,8 @@ export default function VotacionPage({
 
     // ─── RENDER ───────────────────────────────────────────────────────────────
 
-    if (inicializando) {
+    // Cargando asamblea o sesión
+    if (inicializando || asamblea === null) {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <span className="text-gray-600">Cargando sesión…</span>
@@ -189,8 +269,148 @@ export default function VotacionPage({
         )
     }
 
-    // Pantalla de Login
+    // ── Pantalla de Login ──────────────────────────────────────────────────────
     if (!autenticado) {
+
+        // ── Login INFINITY ────────────────────────────────────────────────────
+        if (esInfinity) {
+            return (
+                <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-indigo-100 px-4">
+                    <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8">
+
+                        {/* Header */}
+                        <div className="text-center mb-8">
+                            <div className="inline-flex items-center justify-center w-16 h-16 bg-purple-600 rounded-full mb-4">
+                                <Vote className="w-8 h-8 text-white" />
+                            </div>
+                            <h1 className="text-3xl font-bold text-gray-900 mb-2">Panel de Votación</h1>
+                            <p className="text-gray-500 text-sm">Edificio Infinity</p>
+                        </div>
+
+                        {/* Error */}
+                        {error && (
+                            <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+                                <div className="flex items-start gap-2">
+                                    <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+                                    <p className="text-sm text-red-700">{error}</p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Selector de modo */}
+                        {modoLoginInfinity === null && (
+                            <div className="space-y-3">
+                                <p className="text-sm font-medium text-gray-700 text-center mb-4">
+                                    ¿Cómo deseas ingresar?
+                                </p>
+                                <button
+                                    type="button"
+                                    onClick={() => { setModoLoginInfinity('residente'); setError('') }}
+                                    className="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-indigo-200 hover:border-indigo-500 hover:bg-indigo-50 transition-all text-left"
+                                >
+                                    <div className="flex-shrink-0 w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
+                                        <Building className="w-5 h-5 text-indigo-600" />
+                                    </div>
+                                    <div>
+                                        <p className="font-semibold text-gray-900">Soy residente / propietario</p>
+                                        <p className="text-xs text-gray-500">Ingreso con torre y apartamento</p>
+                                    </div>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => { setModoLoginInfinity('apoderado_externo'); setError('') }}
+                                    className="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-purple-200 hover:border-purple-500 hover:bg-purple-50 transition-all text-left"
+                                >
+                                    <div className="flex-shrink-0 w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center">
+                                        <MapPin className="w-5 h-5 text-purple-600" />
+                                    </div>
+                                    <div>
+                                        <p className="font-semibold text-gray-900">Soy apoderado externo</p>
+                                        <p className="text-xs text-gray-500">Ingreso con mi número de cédula</p>
+                                    </div>
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Modo residente: Torre + Apto */}
+                        {modoLoginInfinity === 'residente' && (
+                            <div className="space-y-4">
+                                <button
+                                    type="button"
+                                    onClick={() => { setModoLoginInfinity(null); setError(''); setTorre(''); setApto('') }}
+                                    className="text-xs text-indigo-600 hover:underline flex items-center gap-1"
+                                >
+                                    ← Volver
+                                </button>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Torre</label>
+                                    <Input
+                                        value={torre}
+                                        onChange={(e) => setTorre(e.target.value)}
+                                        placeholder="Ej: Torre A"
+                                        onKeyDown={(e) => { if (e.key === 'Enter') autenticarConTorreApto() }}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Apartamento</label>
+                                    <Input
+                                        value={apto}
+                                        onChange={(e) => setApto(e.target.value)}
+                                        placeholder="Ej: 101"
+                                        onKeyDown={(e) => { if (e.key === 'Enter') autenticarConTorreApto() }}
+                                    />
+                                </div>
+                                <Button
+                                    onClick={autenticarConTorreApto}
+                                    disabled={loading || !torre.trim() || !apto.trim()}
+                                    className="w-full"
+                                >
+                                    {loading ? 'Verificando...' : 'Ingresar'}
+                                </Button>
+                            </div>
+                        )}
+
+                        {/* Modo apoderado externo: Cédula */}
+                        {modoLoginInfinity === 'apoderado_externo' && (
+                            <div className="space-y-4">
+                                <button
+                                    type="button"
+                                    onClick={() => { setModoLoginInfinity(null); setError(''); setCedulaApoderado('') }}
+                                    className="text-xs text-indigo-600 hover:underline flex items-center gap-1"
+                                >
+                                    ← Volver
+                                </button>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Número de Cédula
+                                    </label>
+                                    <Input
+                                        type="text"
+                                        value={cedulaApoderado}
+                                        onChange={(e) => setCedulaApoderado(e.target.value.replace(/\D/g, ''))}
+                                        placeholder="1234567890"
+                                        maxLength={12}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') autenticarConCedula(cedulaApoderado)
+                                        }}
+                                    />
+                                </div>
+                                <Button
+                                    onClick={() => autenticarConCedula(cedulaApoderado)}
+                                    disabled={loading || cedulaApoderado.length < 6}
+                                    className="w-full"
+                                >
+                                    {loading ? 'Verificando...' : 'Ingresar'}
+                                </Button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )
+        }
+
+        // ── Login NORMAL (todos los demás conjuntos) ──────────────────────────
         return (
             <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-indigo-100 px-4">
                 <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8">
@@ -222,11 +442,11 @@ export default function VotacionPage({
                                 onChange={(e) => setCedula(e.target.value.replace(/\D/g, ''))}
                                 placeholder="1234567890"
                                 maxLength={12}
-                                onKeyDown={(e) => { if (e.key === 'Enter') autenticar() }}
+                                onKeyDown={(e) => { if (e.key === 'Enter') autenticarConCedula(cedula) }}
                             />
                         </div>
                         <Button
-                            onClick={autenticar}
+                            onClick={() => autenticarConCedula(cedula)}
                             disabled={loading || cedula.length < 6}
                             className="w-full"
                         >
@@ -238,14 +458,14 @@ export default function VotacionPage({
         )
     }
 
-    // Datos del estado más reciente (polling) o vacío mientras carga
+    // ── Panel de Votación (autenticado) ───────────────────────────────────────
     const proposiciones = estado?.proposiciones ?? []
     const esVirtualOHibrida = (estado?.modalidad ?? '') === 'virtual' || (estado?.modalidad ?? '') === 'hibrida'
     const mostrarZoom = esVirtualOHibrida && estado?.linkZoom
 
-    // Pantalla de Votación
     return (
         <div className="min-h-screen bg-gradient-to-br from-purple-50 to-indigo-100">
+
             {/* Header */}
             <header className="bg-white border-b border-gray-200">
                 <div className="max-w-4xl mx-auto px-4 py-4">
@@ -269,7 +489,7 @@ export default function VotacionPage({
                         <div className="flex items-center justify-between gap-4">
                             <div className="flex items-center gap-3">
                                 <div className="flex-shrink-0 bg-white bg-opacity-20 rounded-full p-2">
-                                    <Video className="h-5 w-5 text-red" />
+                                    <Video className="h-5 w-5 text-white" />
                                 </div>
                                 <div>
                                     <p className="font-semibold text-white text-sm">
@@ -282,46 +502,45 @@ export default function VotacionPage({
                                 href={estado?.linkZoom!}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="flex-shrink-0 flex items-center gap-2 bg-white text-blue-700 hover:bg-blue-50 transition-colors font-semibold text-sm px-4 py-2 rounded-lg"
+                                className="flex items-center gap-2 bg-white text-blue-700 font-semibold px-4 py-2 rounded-lg text-sm hover:bg-blue-50 transition-colors flex-shrink-0"
                             >
-                                Unirse a Zoom
-                                <ExternalLink className="h-4 w-4" />
+                                Unirse <ExternalLink className="h-4 w-4" />
                             </a>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* Alerta Confirmación */}
+            {/* Alerta Confirmación de Asistencia */}
             {mostrarAlertaConfirmacion && (
-                <div className="bg-yellow-500 border-b-4 border-yellow-600">
+                <div className="bg-amber-50 border-b-2 border-amber-300">
                     <div className="max-w-4xl mx-auto px-4 py-4">
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between gap-4">
                             <div className="flex items-center gap-3">
-                                <UserCheck className="h-6 w-6 text-white" />
-                                <div>
-                                    <p className="font-semibold text-white">¿Sigues presente en la asamblea?</p>
-                                    <p className="text-sm text-yellow-100">
-                                        Por favor confirma tu asistencia para continuar participando
-                                    </p>
-                                </div>
+                                <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0" />
+                                <p className="text-sm font-medium text-amber-800">
+                                    El administrador solicita que confirmes tu asistencia para continuar participando.
+                                </p>
                             </div>
                             <Button
+                                size="sm"
                                 onClick={confirmarAsistencia}
                                 disabled={confirmando}
-                                className="bg-white text-yellow-700 hover:bg-yellow-50"
+                                className="bg-amber-600 hover:bg-amber-700 text-white flex-shrink-0"
                             >
-                                {confirmando ? 'Confirmando...' : 'Confirmar Asistencia'}
+                                {confirmando ? 'Confirmando...' : 'Confirmar asistencia'}
                             </Button>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* Main */}
-            <main className="max-w-4xl mx-auto px-4 py-8">
+            {/* Contenido principal */}
+            <main className="max-w-4xl mx-auto px-4 py-6 space-y-4">
+
+                {/* Error global */}
                 {error && (
-                    <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                         <div className="flex items-start gap-2">
                             <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
                             <p className="text-sm text-red-700">{error}</p>
@@ -329,70 +548,87 @@ export default function VotacionPage({
                     </div>
                 )}
 
+                {/* Coeficiente del votante */}
+                <div className="bg-white rounded-xl border border-gray-200 p-4">
+                    <p className="text-sm text-gray-500">Tu coeficiente total</p>
+                    <p className="text-2xl font-bold text-indigo-700">
+                        {votante?.coeficienteTotal?.toFixed(4)}%
+                    </p>
+                </div>
+
+                {/* Proposiciones */}
                 {proposiciones.length === 0 ? (
-                    <div className="bg-white rounded-lg shadow-sm border p-12 text-center">
-                        <Vote className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                        <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                            No hay votaciones activas
-                        </h3>
-                        <p className="text-gray-600">
-                            Espera a que el administrador abra una votación
-                        </p>
+                    <div className="bg-white rounded-xl border border-gray-200 p-8 text-center">
+                        <Vote className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                        <p className="text-gray-500 font-medium">No hay votaciones activas en este momento</p>
+                        <p className="text-gray-400 text-sm mt-1">El administrador abrirá las votaciones durante la asamblea</p>
                     </div>
                 ) : (
-                    <div className="space-y-6">
-                        {proposiciones.map((proposicion) => (
-                            <div key={proposicion.id} className="bg-white rounded-lg shadow-sm border p-6">
-                                <div className="mb-4">
-                                    <div className="flex items-start justify-between mb-2">
-                                        <h2 className="text-xl font-semibold text-gray-900">
-                                            {proposicion.numeroOrden}. {proposicion.titulo}
-                                        </h2>
-                                        {proposicion.yaVoto && (
-                                            <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium">
-                                                ✓ VOTADO
-                                            </span>
+                    proposiciones.map((proposicion: any) => {
+                        const yaVoto = proposicion.yaVoto
+                        const estaActiva = proposicion.estado === 'activa'
+
+                        return (
+                            <div
+                                key={proposicion.id}
+                                className={`bg-white rounded-xl border p-6 space-y-4 ${estaActiva ? 'border-indigo-300 shadow-md' : 'border-gray-200 opacity-75'}`}
+                            >
+                                {/* Cabecera proposición */}
+                                <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                        <span className="text-xs font-semibold text-indigo-600 uppercase tracking-wide">
+                                            {proposicion.tipo === 'binaria' ? 'Votación' : 'Elección'}
+                                        </span>
+                                        <h2 className="text-lg font-bold text-gray-900 mt-1">{proposicion.titulo}</h2>
+                                        {proposicion.descripcion && (
+                                            <p className="text-sm text-gray-500 mt-1">{proposicion.descripcion}</p>
                                         )}
                                     </div>
-                                    <p className="text-gray-600">{proposicion.descripcion}</p>
+                                    <span className={`flex-shrink-0 text-xs font-medium px-2.5 py-1 rounded-full ${estaActiva
+                                        ? 'bg-green-100 text-green-700'
+                                        : 'bg-gray-100 text-gray-500'
+                                        }`}>
+                                        {estaActiva ? 'Activa' : 'Cerrada'}
+                                    </span>
                                 </div>
 
-                                {proposicion.yaVoto ? (
-                                    <div className="bg-green-50 rounded-lg p-4 text-center">
-                                        <CheckCircle2 className="h-8 w-8 text-green-600 mx-auto mb-2" />
-                                        <p className="text-green-800 font-medium">
-                                            Ya emitiste tu voto en esta pregunta
+                                {/* Voto ya emitido */}
+                                {yaVoto ? (
+                                    <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+                                        <p className="text-green-700 font-semibold text-sm">
+                                            ✓ Voto registrado
+                                        </p>
+                                        <p className="text-green-600 text-xs mt-1">
+                                            Tu voto ha sido contabilizado correctamente
                                         </p>
                                     </div>
-                                ) : (
-                                    <div className="grid grid-cols-1 gap-3">
-                                        {proposicion.opciones.map((opcion) => (
-                                            <Button
+                                ) : estaActiva ? (
+                                    /* Opciones de voto */
+                                    <div className="grid gap-2">
+                                        {proposicion.opciones?.map((opcion: any) => (
+                                            <button
                                                 key={opcion.id}
                                                 onClick={() => emitirVoto(proposicion.id, opcion.id)}
-                                                disabled={votando === proposicion.id}
-                                                variant="outline"
-                                                className="w-full h-auto py-4 text-lg justify-start hover:bg-purple-50 hover:border-purple-300"
+                                                disabled={!!votando}
+                                                className={`w-full py-3 px-4 rounded-lg border-2 font-medium text-sm transition-all
+                                                    ${votando === proposicion.id
+                                                        ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-wait'
+                                                        : 'border-indigo-200 bg-white text-indigo-700 hover:border-indigo-500 hover:bg-indigo-50 active:scale-[0.98]'
+                                                    }`}
                                             >
-                                                {opcion.texto}
-                                            </Button>
+                                                {votando === proposicion.id ? 'Registrando...' : opcion.texto}
+                                            </button>
                                         ))}
+                                    </div>
+                                ) : (
+                                    <div className="bg-gray-50 rounded-lg p-3 text-center">
+                                        <p className="text-gray-400 text-sm">Esta votación ya cerró</p>
                                     </div>
                                 )}
                             </div>
-                        ))}
-                    </div>
+                        )
+                    })
                 )}
-
-                {/* Info del votante */}
-                <div className="mt-8 bg-white rounded-lg shadow-sm border p-4">
-                    <div className="flex justify-between items-center text-sm">
-                        <span className="text-gray-600">Tu coeficiente de votación:</span>
-                        <span className="font-semibold text-gray-900">
-                            {Number(votante?.coeficienteTotal).toFixed(2)}%
-                        </span>
-                    </div>
-                </div>
             </main>
         </div>
     )
