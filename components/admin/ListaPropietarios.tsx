@@ -3,15 +3,8 @@
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import { Edit, Save, X, Trash2 } from 'lucide-react'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, } from '@/components/ui/table'
+import { Edit, Save, X, Trash2, ShieldOff, ShieldCheck } from 'lucide-react'
 import { useConfirmDialog } from '@/components/hooks/useConfirmDialog'
 
 interface Propietario {
@@ -28,12 +21,24 @@ interface ListaPropietariosProps {
   onActualizar: () => void
 }
 
+interface Propietario {
+  id: string
+  nombreCompleto: string
+  cedula: string
+  torreManzana: string
+  aptoCasa: string
+  coeficiente: number
+  bloqueadoParaVotar: boolean
+  motivoBloqueo: string | null
+}
+
 const ITEMS_POR_PAGINA = 15
 
 export function ListaPropietarios({ propietarios, onActualizar }: ListaPropietariosProps) {
   const [editandoId, setEditandoId] = useState<string | null>(null)
   const [formData, setFormData] = useState<Partial<Propietario>>({})
   const [guardando, setGuardando] = useState(false)
+  const [bloqueandoId, setBloqueandoId] = useState<string | null>(null)
   const [filtroNombre, setFiltroNombre] = useState('')
   const [filtroCedula, setFiltroCedula] = useState('')
   const [filtroTorre, setFiltroTorre] = useState('')
@@ -68,7 +73,7 @@ export function ListaPropietarios({ propietarios, onActualizar }: ListaPropietar
           confirmText: 'Aceptar',
           variant: 'success',
           hideCancel: true,
-          onConfirm: () => {},
+          onConfirm: () => { },
         })
         setEditandoId(null)
         setFormData({})
@@ -80,7 +85,7 @@ export function ListaPropietarios({ propietarios, onActualizar }: ListaPropietar
           confirmText: 'Aceptar',
           variant: 'destructive',
           hideCancel: true,
-          onConfirm: () => {},
+          onConfirm: () => { },
         })
       }
     } catch (error) {
@@ -90,7 +95,7 @@ export function ListaPropietarios({ propietarios, onActualizar }: ListaPropietar
         confirmText: 'Aceptar',
         variant: 'destructive',
         hideCancel: true,
-        onConfirm: () => {},
+        onConfirm: () => { },
       })
     } finally {
       setGuardando(false)
@@ -117,7 +122,7 @@ export function ListaPropietarios({ propietarios, onActualizar }: ListaPropietar
               confirmText: 'Aceptar',
               variant: 'success',
               hideCancel: true,
-              onConfirm: () => {},
+              onConfirm: () => { },
             })
             // Ajustar página si queda vacía
             const nuevoTotal = propietariosFiltrados.length - 1
@@ -133,7 +138,7 @@ export function ListaPropietarios({ propietarios, onActualizar }: ListaPropietar
               confirmText: 'Aceptar',
               variant: 'destructive',
               hideCancel: true,
-              onConfirm: () => {},
+              onConfirm: () => { },
             })
           }
         } catch (error) {
@@ -143,8 +148,56 @@ export function ListaPropietarios({ propietarios, onActualizar }: ListaPropietar
             confirmText: 'Aceptar',
             variant: 'destructive',
             hideCancel: true,
-            onConfirm: () => {},
+            onConfirm: () => { },
           })
+        }
+      },
+    })
+  }
+
+  // Toggle bloqueo de voto con confirmación
+  const toggleBloqueo = (prop: Propietario) => {
+    const bloqueando = !prop.bloqueadoParaVotar
+    confirm({
+      title: bloqueando ? '¿Bloquear derecho al voto?' : '¿Restablecer derecho al voto?',
+      description: bloqueando
+        ? `${prop.nombreCompleto} podrá registrarse en la asamblea pero NO podrá votar.`
+        : `${prop.nombreCompleto} recuperará su derecho al voto en futuras asambleas.`,
+      confirmText: bloqueando ? 'Bloquear voto' : 'Restablecer voto',
+      cancelText: 'Cancelar',
+      variant: bloqueando ? 'destructive' : 'success',
+      onConfirm: async () => {
+        setBloqueandoId(prop.id)
+        try {
+          const response = await fetch(`/api/propietarios/${prop.id}/bloqueo`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ bloqueadoParaVotar: bloqueando }),
+          })
+          const data = await response.json()
+          if (data.success) {
+            onActualizar()
+          } else {
+            confirm({
+              title: 'Error',
+              description: data.error || 'No se pudo actualizar el estado de bloqueo.',
+              confirmText: 'Aceptar',
+              variant: 'destructive',
+              hideCancel: true,
+              onConfirm: () => { },
+            })
+          }
+        } catch {
+          confirm({
+            title: 'Error de conexión',
+            description: 'No fue posible actualizar. Intenta nuevamente.',
+            confirmText: 'Aceptar',
+            variant: 'destructive',
+            hideCancel: true,
+            onConfirm: () => { },
+          })
+        } finally {
+          setBloqueandoId(null)
         }
       },
     })
@@ -219,6 +272,7 @@ export function ListaPropietarios({ propietarios, onActualizar }: ListaPropietar
               <TableHead>Torre</TableHead>
               <TableHead>Apto</TableHead>
               <TableHead>Coeficiente</TableHead>
+              <TableHead className="text-center">Estado voto</TableHead>
               <TableHead className="w-[100px]">Acciones</TableHead>
             </TableRow>
           </TableHeader>
@@ -235,7 +289,10 @@ export function ListaPropietarios({ propietarios, onActualizar }: ListaPropietar
               propietariosPaginados.map((prop, index) => {
                 const indexGlobal = (paginaActual - 1) * ITEMS_POR_PAGINA + index
                 return (
-                  <TableRow key={prop.id}>
+                  <TableRow
+                    key={prop.id}
+                    className={prop.bloqueadoParaVotar ? 'bg-red-50 hover:bg-red-100' : undefined}
+                  >
                     <TableCell className="text-center text-sm text-gray-400 font-mono">
                       {indexGlobal + 1}
                     </TableCell>
@@ -279,6 +336,7 @@ export function ListaPropietarios({ propietarios, onActualizar }: ListaPropietar
                             disabled
                           />
                         </TableCell>
+                        <TableCell />
                         <TableCell>
                           <div className="flex gap-1">
                             <Button size="sm" onClick={guardarEdicion} disabled={guardando}>
@@ -292,15 +350,47 @@ export function ListaPropietarios({ propietarios, onActualizar }: ListaPropietar
                       </>
                     ) : (
                       <>
-                        <TableCell className="font-medium">{prop.nombreCompleto}</TableCell>
+                        <TableCell className="font-medium">
+                          <div className="flex flex-col">
+                            <span>{prop.nombreCompleto}</span>
+                            {prop.bloqueadoParaVotar && prop.motivoBloqueo && (
+                              <span className="text-xs text-red-500 mt-0.5">{prop.motivoBloqueo}</span>
+                            )}
+                          </div>
+                        </TableCell>
                         <TableCell>{prop.cedula}</TableCell>
                         <TableCell>{prop.torreManzana}</TableCell>
                         <TableCell>{prop.aptoCasa}</TableCell>
                         <TableCell>{prop.coeficiente}%</TableCell>
+                        <TableCell className="text-center">
+                          {prop.bloqueadoParaVotar ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                              <ShieldOff className="h-3 w-3" />
+                              Sin voto
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                              <ShieldCheck className="h-3 w-3" />
+                              Con voto
+                            </span>
+                          )}
+                        </TableCell>
                         <TableCell>
                           <div className="flex gap-1">
                             <Button size="sm" variant="ghost" onClick={() => iniciarEdicion(prop)}>
                               <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => toggleBloqueo(prop)}
+                              disabled={bloqueandoId === prop.id}
+                              title={prop.bloqueadoParaVotar ? 'Restablecer voto' : 'Bloquear voto'}
+                            >
+                              {prop.bloqueadoParaVotar
+                                ? <ShieldCheck className="h-4 w-4 text-green-600" />
+                                : <ShieldOff className="h-4 w-4 text-amber-500" />
+                              }
                             </Button>
                             <Button size="sm" variant="ghost" onClick={() => eliminar(prop.id, prop.nombreCompleto)}>
                               <Trash2 className="h-4 w-4 text-red-500" />
@@ -326,43 +416,19 @@ export function ListaPropietarios({ propietarios, onActualizar }: ListaPropietar
             {propietariosFiltrados.length} propietarios
           </p>
           <div className="flex items-center gap-1">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPaginaActual(1)}
-              disabled={paginaActual === 1}
-              className="h-8 px-2"
-            >
-              «
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPaginaActual((p) => Math.max(1, p - 1))}
-              disabled={paginaActual === 1}
-              className="h-8 px-3"
-            >
-              ‹
-            </Button>
+            <Button variant="outline" size="sm" onClick={() => setPaginaActual(1)} disabled={paginaActual === 1} className="h-8 px-2">«</Button>
+            <Button variant="outline" size="sm" onClick={() => setPaginaActual((p) => Math.max(1, p - 1))} disabled={paginaActual === 1} className="h-8 px-3">‹</Button>
 
             {Array.from({ length: totalPaginas }, (_, i) => i + 1)
-              .filter((page) =>
-                page === 1 ||
-                page === totalPaginas ||
-                Math.abs(page - paginaActual) <= 1
-              )
+              .filter((page) => page === 1 || page === totalPaginas || Math.abs(page - paginaActual) <= 1)
               .reduce<(number | string)[]>((acc, page, idx, arr) => {
-                if (idx > 0 && page - (arr[idx - 1] as number) > 1) {
-                  acc.push('...')
-                }
+                if (idx > 0 && page - (arr[idx - 1] as number) > 1) acc.push('...')
                 acc.push(page)
                 return acc
               }, [])
               .map((item, idx) =>
                 item === '...' ? (
-                  <span key={`dots-${idx}`} className="px-2 text-gray-400 text-sm">
-                    ...
-                  </span>
+                  <span key={`dots-${idx}`} className="px-2 text-gray-400 text-sm">...</span>
                 ) : (
                   <Button
                     key={item}
@@ -376,24 +442,8 @@ export function ListaPropietarios({ propietarios, onActualizar }: ListaPropietar
                 )
               )}
 
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPaginaActual((p) => Math.min(totalPaginas, p + 1))}
-              disabled={paginaActual === totalPaginas}
-              className="h-8 px-3"
-            >
-              ›
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPaginaActual(totalPaginas)}
-              disabled={paginaActual === totalPaginas}
-              className="h-8 px-2"
-            >
-              »
-            </Button>
+            <Button variant="outline" size="sm" onClick={() => setPaginaActual((p) => Math.min(totalPaginas, p + 1))} disabled={paginaActual === totalPaginas} className="h-8 px-3">›</Button>
+            <Button variant="outline" size="sm" onClick={() => setPaginaActual(totalPaginas)} disabled={paginaActual === totalPaginas} className="h-8 px-2">»</Button>
           </div>
         </div>
       )}

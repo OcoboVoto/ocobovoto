@@ -1,19 +1,18 @@
-//app/votar/[asambleaId]/page.tsx
 'use client'
 
 import { use, useCallback, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { AlertCircle, Vote, LogOut, Video, ExternalLink, Building, MapPin } from 'lucide-react'
+import { AlertCircle, Vote, LogOut, Video, ExternalLink, Building, MapPin, ShieldOff } from 'lucide-react'
 import { toast } from 'sonner'
 import { useVotacionPolling } from '@/components/hooks/use-votacion-polling'
 
-// ─── Constantes Infinity ──────────────────────────────────────────────────────
+// Constantes Infinity
 const CONJUNTO_INFINITY_ID = '4231a601-6721-46e0-b8c4-5f3435adfc28'
 
 type ModoLoginInfinity = null | 'residente' | 'apoderado_externo'
 
-// ─── Tipos ────────────────────────────────────────────────────────────────────
+// Tipos
 interface Votante {
     id: string
     nombreCompleto: string
@@ -28,6 +27,12 @@ interface AsambleaInfo {
     conjuntoId: string
 }
 
+// Estado de bloqueo de voto
+interface EstadoBloqueo {
+    nombreCompleto: string
+    motivo: string
+}
+
 export default function VotacionPage({
     params,
 }: {
@@ -35,31 +40,32 @@ export default function VotacionPage({
 }) {
     const { asambleaId } = use(params)
 
-    // ─── Estado general ───────────────────────────────────────────────────────
+    // Estado general
     const [inicializando, setInicializando] = useState(true)
     const [asamblea, setAsamblea] = useState<AsambleaInfo | null>(null)
     const [autenticado, setAutenticado] = useState(false)
     const [votante, setVotante] = useState<Votante | null>(null)
+    const [bloqueado, setBloqueado] = useState<EstadoBloqueo | null>(null)
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
     const [votando, setVotando] = useState<string | null>(null)
     const [mostrarAlertaConfirmacion, setMostrarAlertaConfirmacion] = useState(false)
     const [confirmando, setConfirmando] = useState(false)
 
-    // ─── Estado login normal (cédula) ─────────────────────────────────────────
+    // Estado login normal (cédula)
     const [cedula, setCedula] = useState('')
     const [cedulaActiva, setCedulaActiva] = useState<string | null>(null)
 
-    // ─── Estado login Infinity ────────────────────────────────────────────────
+    // Estado login Infinity
     const [modoLoginInfinity, setModoLoginInfinity] = useState<ModoLoginInfinity>(null)
     const [torre, setTorre] = useState('')
     const [apto, setApto] = useState('')
     const [cedulaApoderado, setCedulaApoderado] = useState('')
 
-    // ─── Derivados ────────────────────────────────────────────────────────────
+    // Derivados
     const esInfinity = asamblea?.conjuntoId === CONJUNTO_INFINITY_ID
 
-    // ─── POLLING ──────────────────────────────────────────────────────────────
+    // POLLING
     const { estado, refrescarAhora } = useVotacionPolling({
         asambleaId,
         cedula: cedulaActiva,
@@ -78,7 +84,7 @@ export default function VotacionPage({
         }
     }, [estado?.confirmacionActivada, estado?.asambleaEstado, votante])
 
-    // ─── Cargar datos básicos de la asamblea ──────────────────────────────────
+    // Cargar datos básicos de la asamblea
     useEffect(() => {
         const cargarAsamblea = async () => {
             try {
@@ -99,7 +105,7 @@ export default function VotacionPage({
         cargarAsamblea()
     }, [asambleaId])
 
-    // ─── Autenticar con cédula (flujo normal y apoderado externo Infinity) ────
+    // Autenticar con cédula (flujo normal y apoderado externo Infinity)
     const autenticarConCedula = useCallback(async (cedulaValue: string) => {
         if (cedulaValue.length < 6) {
             setError('Ingresa una cédula válida')
@@ -122,6 +128,13 @@ export default function VotacionPage({
                 if (data.data.confirmacionActivada && !data.data.votante.confirmoAsistencia) {
                     setMostrarAlertaConfirmacion(true)
                 }
+            } else if (data.error === 'SIN_DERECHO_AL_VOTO') {
+                // Propietario en mora: registrado pero sin derecho al voto
+                setBloqueado({
+                    nombreCompleto: data.data.nombreCompleto,
+                    motivo: data.data.motivo,
+                })
+                sessionStorage.removeItem('cedula_votante')
             } else {
                 setError(data.error || 'Cédula no encontrada en esta asamblea')
                 sessionStorage.removeItem('cedula_votante')
@@ -133,7 +146,7 @@ export default function VotacionPage({
         }
     }, [asambleaId])
 
-    // ─── Autenticar con Torre+Apto (Infinity residente) ───────────────────────
+    // Autenticar con Torre+Apto (Infinity residente)
     const autenticarConTorreApto = async () => {
         if (!torre.trim() || !apto.trim()) {
             setError('Ingresa la torre y el apartamento')
@@ -164,7 +177,7 @@ export default function VotacionPage({
         }
     }
 
-    // ─── Restaurar sesión al montar ───────────────────────────────────────────
+    // Restaurar sesión al montar
     useEffect(() => {
         const restaurarSesion = async () => {
             // Esperamos a tener los datos de asamblea antes de restaurar sesión
@@ -182,22 +195,22 @@ export default function VotacionPage({
         }
     }, [asamblea, autenticarConCedula])
 
-    // ─── Cerrar sesión ────────────────────────────────────────────────────────
+    // Cerrar sesión
     const cerrarSesion = () => {
         setCedulaActiva(null)
         sessionStorage.removeItem('cedula_votante')
         setAutenticado(false)
         setCedula('')
         setVotante(null)
+        setBloqueado(null)
         setMostrarAlertaConfirmacion(false)
-        // Limpiar campos Infinity
         setTorre('')
         setApto('')
         setCedulaApoderado('')
         setModoLoginInfinity(null)
     }
 
-    // ─── Confirmar asistencia ─────────────────────────────────────────────────
+    // Confirmar asistencia
     const confirmarAsistencia = async () => {
         if (!votante) return
         setConfirmando(true)
@@ -224,7 +237,7 @@ export default function VotacionPage({
         }
     }
 
-    // ─── Emitir voto ──────────────────────────────────────────────────────────
+    // Emitir voto
     const emitirVoto = async (proposicionId: string, opcionId: string) => {
         if (!cedula || votando) return
         setVotando(proposicionId)
@@ -258,7 +271,7 @@ export default function VotacionPage({
         }
     }
 
-    // ─── RENDER ───────────────────────────────────────────────────────────────
+    // ── RENDER ──
 
     // Cargando asamblea o sesión
     if (inicializando || asamblea === null) {
@@ -269,10 +282,38 @@ export default function VotacionPage({
         )
     }
 
-    // ── Pantalla de Login ──────────────────────────────────────────────────────
+    // Pantalla "voz sin voto" — propietario en mora
+    if (bloqueado) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-amber-50 to-orange-100 px-4">
+                <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8 text-center">
+                    <div className="inline-flex items-center justify-center w-16 h-16 bg-amber-100 rounded-full mb-4">
+                        <ShieldOff className="w-8 h-8 text-amber-600" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-1">Voz sin voto</h2>
+                    <p className="text-gray-500 text-sm mb-4">{bloqueado.nombreCompleto}</p>
+                    <p className="text-gray-600 mb-5">
+                        Estás registrado como asistente a esta asamblea, pero{' '}
+                        <strong>no tienes derecho al voto</strong>.
+                    </p>
+                    <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
+                        {bloqueado.motivo}
+                    </div>
+                    <button
+                        onClick={cerrarSesion}
+                        className="mt-6 text-xs text-gray-400 hover:text-gray-600 underline"
+                    >
+                        Volver
+                    </button>
+                </div>
+            </div>
+        )
+    }
+
+    // ── Pantalla de Login ──
     if (!autenticado) {
 
-        // ── Login INFINITY ────────────────────────────────────────────────────
+        // Login INFINITY
         if (esInfinity) {
             return (
                 <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-indigo-100 px-4">
@@ -410,7 +451,7 @@ export default function VotacionPage({
             )
         }
 
-        // ── Login NORMAL (todos los demás conjuntos) ──────────────────────────
+        // Login NORMAL (todos los demás conjuntos)
         return (
             <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-50 to-indigo-100 px-4">
                 <div className="max-w-md w-full bg-white rounded-2xl shadow-xl p-8">
@@ -458,7 +499,7 @@ export default function VotacionPage({
         )
     }
 
-    // ── Panel de Votación (autenticado) ───────────────────────────────────────
+    // ── Panel de Votación (autenticado) ──
     const proposiciones = estado?.proposiciones ?? []
     const esVirtualOHibrida = (estado?.modalidad ?? '') === 'virtual' || (estado?.modalidad ?? '') === 'hibrida'
     const mostrarZoom = esVirtualOHibrida && estado?.linkZoom
@@ -566,9 +607,6 @@ export default function VotacionPage({
                 ) : (
                     proposiciones.map((proposicion: any) => {
                         const yaVoto = proposicion.yaVoto
-                        // El API /api/votacion solo devuelve proposiciones con estado 'activa',
-                        // el campo estado no viene en el objeto del polling. Siempre activa.
-                        const estaActiva = true
 
                         return (
                             <div
@@ -594,9 +632,7 @@ export default function VotacionPage({
                                 {/* Voto ya emitido */}
                                 {yaVoto ? (
                                     <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
-                                        <p className="text-green-700 font-semibold text-sm">
-                                            ✓ Voto registrado
-                                        </p>
+                                        <p className="text-green-700 font-semibold text-sm">✓ Voto registrado</p>
                                         <p className="text-green-600 text-xs mt-1">
                                             Tu voto ha sido contabilizado correctamente
                                         </p>

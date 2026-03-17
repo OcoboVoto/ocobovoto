@@ -19,7 +19,7 @@ export async function GET(
     }
 
     // Queries 1 y 2 en paralelo — no dependen una de la otra
-    const [votante, asamblea] = await Promise.all([
+    const [votante, asamblea, propietario] = await Promise.all([
       prisma.votante.findUnique({
         where: {
           asambleaId_cedula: { asambleaId, cedula },
@@ -44,7 +44,12 @@ export async function GET(
           estado: true,
           confirmacionActivada: true,
           confirmacionCerrada: true,
+          conjuntoId: true
         },
+      }),
+      prisma.propietario.findFirst({
+        where: { cedula, activo: true },
+        select: { bloqueadoParaVotar: true, motivoBloqueo: true },
       }),
     ])
 
@@ -52,6 +57,17 @@ export async function GET(
       return NextResponse.json<ApiResponse>({
         success: false,
         error: 'No estás registrado en esta asamblea',
+      }, { status: 403 })
+    }
+
+    if (propietario?.bloqueadoParaVotar) {
+      return NextResponse.json<ApiResponse>({
+        success: false,
+        error: 'SIN_DERECHO_AL_VOTO',
+        data: {
+          nombreCompleto: votante.nombreCompleto,
+          motivo: propietario.motivoBloqueo ?? 'Mora en cuotas de administración',
+        },
       }, { status: 403 })
     }
 

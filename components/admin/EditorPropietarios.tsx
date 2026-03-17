@@ -371,12 +371,12 @@ export function EditorPropietarios({ conjuntoId, asambleaId, onGuardadoExitoso }
           disabled={cargando}
         >
           <Upload className="mr-2 h-4 w-4" />
-          {cargando ? 'Cargando...' : 'Subir CSV'}
+          {cargando ? 'Cargando...' : 'Subir Excel'}
         </Button>
         <input
           id="file-upload"
           type="file"
-          accept=".csv"
+          accept=".xlsx"
           className="hidden"
           onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])}
         />

@@ -37,7 +37,9 @@ model Propietario {
   nombreCompleto    String   @map("nombre_completo")  
   cedula            String  
   coeficiente       Decimal  @db.Decimal(10, 4)  
-  activo            Boolean  @default(true)  
+  activo            Boolean  @default(true)
+  bloqueadoParaVotar Boolean  @default(false) @map("bloqueado_para_votar")
+  motivoBloqueo      String?  @map("motivo_bloqueo")
   createdAt         DateTime @default(now()) @map("created_at")  
   updatedAt         DateTime @updatedAt @map("updated_at")  
   
