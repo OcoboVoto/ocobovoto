@@ -10,11 +10,11 @@ export const prisma =
     log: process.env.NODE_ENV === 'development'
       ? ['error', 'warn']
       : ['error'],
-    datasources: {
-      db: {
-        url: process.env.DATABASE_URL,
-      },
-    },
+    //   datasources: {
+    //   db: {
+    //   url: process.env.DATABASE_URL,
+    //},
+    //},
   })
 
 globalForPrisma.prisma = prisma
