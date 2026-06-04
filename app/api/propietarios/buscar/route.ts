@@ -228,6 +228,21 @@ export async function GET(request: NextRequest) {
     let poderesOtorgados: any[] = []
     let coeficienteTotal = coeficientePropio
 
+    // 5b. Verificar qué unidades propias ya tienen poder OTORGADO (para el selector)
+    let propietariosDetalle: Array<{
+      id: string
+      torreManzana: string
+      aptoCasa: string
+      coeficiente: number
+      tienePoder: boolean
+    }> = propietarios.map(p => ({
+      id: p.id,
+      torreManzana: p.torreManzana,
+      aptoCasa: p.aptoCasa,
+      coeficiente: Number(p.coeficiente),
+      tienePoder: false,
+    }))
+
     if (asambleaId) {
       // Buscar poderes donde ESTA PERSONA es el APODERADO
       poderesOtorgados = await prisma.poder.findMany({
@@ -279,6 +294,23 @@ export async function GET(request: NextRequest) {
         (sum, poder) => sum + Number(poder.propietarioOtorgante.coeficiente),
         coeficientePropio
       )
+
+      // Marcar qué unidades propias ya tienen poder OTORGADO por esta persona
+      if (propietarios.length > 1) {
+        const poderesOtorgadosPropios = await prisma.poder.findMany({
+          where: {
+            propietarioOtorganteId: { in: propietarios.map(p => p.id) },
+            asambleaId,
+            activo: true,
+          },
+          select: { propietarioOtorganteId: true },
+        })
+        const conPoder = new Set(poderesOtorgadosPropios.map(p => p.propietarioOtorganteId))
+        propietariosDetalle = propietariosDetalle.map(p => ({
+          ...p,
+          tienePoder: conPoder.has(p.id),
+        }))
+      }
     }
 
     console.log(
@@ -303,6 +335,7 @@ export async function GET(request: NextRequest) {
         tienePoderes: poderesOtorgados.length > 0,
         cantidadUnidades: propietarios.length,
         unidades: unidadesPropias,
+        propietariosDetalle,
       },
     })
 
