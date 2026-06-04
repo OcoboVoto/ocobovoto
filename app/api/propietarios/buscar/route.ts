@@ -212,24 +212,40 @@ export async function GET(request: NextRequest) {
     // CASO: Es propietario del conjunto (flujo original sin cambios)
     // ─────────────────────────────────────────────────────────────────────────
 
-    // 3. Sumar coeficientes de TODAS las propiedades del propietario
-    const coeficientePropio = propietarios.reduce(
-      (sum, prop) => sum + Number(prop.coeficiente),
-      0
-    )
+    // 3. Buscar qué unidades propias ya tienen poder OTORGADO (para el selector y para restar del coef)
+    let unidadesConPoderOtorgado = new Set<string>()
+    if (asambleaId) {
+      const poderesOtorgadosPropios = await prisma.poder.findMany({
+        where: {
+          propietarioOtorganteId: { in: propietarios.map(p => p.id) },
+          asambleaId,
+          activo: true,
+        },
+        select: { propietarioOtorganteId: true },
+      })
+      unidadesConPoderOtorgado = new Set(poderesOtorgadosPropios.map(p => p.propietarioOtorganteId))
+    }
 
-    // 4. Crear lista de unidades
+    // 4. Sumar coeficientes SOLO de las propiedades que no han otorgado poder a otros
+    const coeficientePropio = propietarios.reduce((sum, prop) => {
+      if (!unidadesConPoderOtorgado.has(prop.id)) {
+        return sum + Number(prop.coeficiente)
+      }
+      return sum
+    }, 0)
+
+    // 5. Crear lista de unidades
     const unidadesPropias = propietarios.map(p => `${p.torreManzana}-${p.aptoCasa}`)
     const unidadesTexto = propietarios.length > 1
       ? unidadesPropias.join(', ')
       : `${propietarios[0].torreManzana}-${propietarios[0].aptoCasa}`
 
-    // 5. Si se proporciona asambleaId, buscar poderes otorgados A esta persona
+    // 6. Si se proporciona asambleaId, buscar poderes otorgados A esta persona
     let poderesOtorgados: any[] = []
     let coeficienteTotal = coeficientePropio
 
-    // 5b. Verificar qué unidades propias ya tienen poder OTORGADO (para el selector)
-    let propietariosDetalle: Array<{
+    // Detalle de unidades propias para el selector
+    const propietariosDetalle: Array<{
       id: string
       torreManzana: string
       aptoCasa: string
@@ -240,7 +256,7 @@ export async function GET(request: NextRequest) {
       torreManzana: p.torreManzana,
       aptoCasa: p.aptoCasa,
       coeficiente: Number(p.coeficiente),
-      tienePoder: false,
+      tienePoder: unidadesConPoderOtorgado.has(p.id),
     }))
 
     if (asambleaId) {
@@ -289,28 +305,11 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // Calcular coeficiente total (propio + poderes)
+      // Calcular coeficiente total (propio activo + poderes)
       coeficienteTotal = poderesOtorgados.reduce(
         (sum, poder) => sum + Number(poder.propietarioOtorgante.coeficiente),
         coeficientePropio
       )
-
-      // Marcar qué unidades propias ya tienen poder OTORGADO por esta persona
-      if (propietarios.length > 1) {
-        const poderesOtorgadosPropios = await prisma.poder.findMany({
-          where: {
-            propietarioOtorganteId: { in: propietarios.map(p => p.id) },
-            asambleaId,
-            activo: true,
-          },
-          select: { propietarioOtorganteId: true },
-        })
-        const conPoder = new Set(poderesOtorgadosPropios.map(p => p.propietarioOtorganteId))
-        propietariosDetalle = propietariosDetalle.map(p => ({
-          ...p,
-          tienePoder: conPoder.has(p.id),
-        }))
-      }
     }
 
     console.log(

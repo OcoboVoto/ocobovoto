@@ -212,6 +212,18 @@ export async function POST(request: NextRequest) {
 
     console.log(`Propietario encontrado: ${propietarios[0].nombreCompleto} con ${propietarios.length} propiedad(es)`)
 
+    // Buscar qué unidades de este propietario ya tienen poder OTORGADO a otra persona
+    // (no deben sumarse al coeficiente propio, pues el poder ya fue transferido)
+    const poderesOtorgadosPropios = await prisma.poder.findMany({
+      where: {
+        propietarioOtorganteId: { in: propietarios.map(p => p.id) },
+        asambleaId,
+        activo: true,
+      },
+      select: { propietarioOtorganteId: true },
+    })
+    const unidadesConPoderOtorgado = new Set(poderesOtorgadosPropios.map(p => p.propietarioOtorganteId))
+
     // Buscar poderes otorgados A ESTA PERSONA (donde ella es apoderada)
     const poderesRecibidos = await prisma.poder.findMany({
       where: {
@@ -235,13 +247,16 @@ export async function POST(request: NextRequest) {
     })
 
     console.log('Poderes recibidos:', poderesRecibidos.length)
+    console.log('Unidades propias con poder ya otorgado a otros:', unidadesConPoderOtorgado.size)
 
-    // Calcular coeficiente total (TODAS las propiedades + poderes recibidos)
+    // Calcular coeficiente total
+    // REGLA: solo cuentan las unidades propias SIN poder otorgado + los poderes recibidos
     let coeficienteTotal = 0
     const detalleRepresentados: any[] = []
 
-    // Sumar coeficientes de TODAS las propiedades del propietario
-    propietarios.forEach((prop) => {
+    // Sumar solo las propiedades que NO delegaron su poder a alguien más
+    const propiedadesActivas = propietarios.filter(p => !unidadesConPoderOtorgado.has(p.id))
+    propiedadesActivas.forEach((prop) => {
       const coefProp = Number(prop.coeficiente)
       coeficienteTotal += coefProp
 
@@ -255,7 +270,7 @@ export async function POST(request: NextRequest) {
       })
     })
 
-    console.log(`Coeficiente propio (${propietarios.length} unidades): ${coeficienteTotal}`)
+    console.log(`Coeficiente propio (${propiedadesActivas.length} unidades activas de ${propietarios.length} totales): ${coeficienteTotal}`)
 
     // Sumar coeficientes de los poderes recibidos
     poderesRecibidos.forEach((poder) => {
